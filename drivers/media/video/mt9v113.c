@@ -728,6 +728,7 @@ static const struct v4l2_subdev_core_ops mt9v113_core_ops = {
 
 static const struct v4l2_subdev_internal_ops mt9v113_subdev_internal_ops = {
 	.open		= mt9v113_open,
+	.registered	= mt9v113_dev_init,
 };
 
 static const struct v4l2_subdev_video_ops mt9v113_video_ops = {
@@ -969,7 +970,6 @@ static int mt9v113_probe(struct i2c_client *client,
 		kfree(mt9v113);
 	}
 
-	mt9v113_dev_init(&mt9v113->subdev);
 	return ret;
 }
 
