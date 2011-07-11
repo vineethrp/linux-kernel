@@ -962,7 +962,7 @@ static int mt9v113_probe(struct i2c_client *client,
 	/*
 	 * Register as media entity
 	 */
-	mt9v113->pad.flags = MEDIA_PAD_FLAG_OUTPUT;
+	mt9v113->pad.flags = MEDIA_PAD_FL_SOURCE;
 	ret = media_entity_init(&mt9v113->subdev.entity, 1, &mt9v113->pad, 0);
 	if (ret < 0) {
 		v4l_err(client, "failed to register as a media entity\n");
