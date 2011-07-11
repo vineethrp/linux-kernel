@@ -722,7 +722,7 @@ static int mt9v113_set_crop(struct v4l2_subdev *subdev,
 
 static const struct v4l2_subdev_core_ops mt9v113_core_ops = {
 	.g_chip_ident = mt9v113_g_chip_ident,
-	.s_config = mt9v113_s_config,
+//	.s_config = mt9v113_s_config,
 	.s_power = mt9v113_s_power,
 };
 
@@ -969,6 +969,7 @@ static int mt9v113_probe(struct i2c_client *client,
 		kfree(mt9v113);
 	}
 
+	mt9v113_dev_init(&mt9v113->subdev);
 	return ret;
 }
 
