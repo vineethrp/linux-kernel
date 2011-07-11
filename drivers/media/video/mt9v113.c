@@ -726,7 +726,7 @@ static const struct v4l2_subdev_core_ops mt9v113_core_ops = {
 	.s_power = mt9v113_s_power,
 };
 
-static struct v4l2_subdev_file_ops mt9v113_subdev_file_ops = {
+static const struct v4l2_subdev_internal_ops mt9v113_subdev_internal_ops = {
 	.open		= mt9v113_open,
 };
 
@@ -745,7 +745,6 @@ static const struct v4l2_subdev_pad_ops mt9v113_pad_ops = {
 
 static const struct v4l2_subdev_ops mt9v113_ops = {
 	.core	= &mt9v113_core_ops,
-	.file	= &mt9v113_subdev_file_ops,
 	.video	= &mt9v113_video_ops,
 	.pad	= &mt9v113_pad_ops,
 };
@@ -957,6 +956,7 @@ static int mt9v113_probe(struct i2c_client *client,
 	 * Register as a subdev
 	 */
 	v4l2_i2c_subdev_init(&mt9v113->subdev, client, &mt9v113_ops);
+	mt9v113->subdev.internal_ops = &mt9v113_subdev_internal_ops;
 	mt9v113->subdev.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 
 	/*
