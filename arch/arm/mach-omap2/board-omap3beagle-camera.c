@@ -28,7 +28,7 @@
 
 #include <media/mt9v113.h>
 
-#include <../drivers/media/video/isp/isp.h>
+#include <../drivers/media/video/omap3isp/isp.h>
 
 #include "devices.h"
 
