@@ -32,11 +32,13 @@
 
 #include "devices.h"
 
-#define CAM_USE_XCLKA			0
+#define CAM_USE_XCLKA			1
 #define LEOPARD_RESET_GPIO		98
 
 static struct regulator *beagle_1v8;
 static struct regulator *beagle_2v8;
+
+#define debg(msg) printk(KERN_ERR "BB Debug: " #msg)
 
 static int beagle_mt9v113_s_power(struct v4l2_subdev *subdev, int on)
 {
@@ -47,18 +49,22 @@ static int beagle_mt9v113_s_power(struct v4l2_subdev *subdev, int on)
 		return -ENODEV;
 	}
 	if (on) {
+		debg(Powering on);
 		/*
 		 * Power Up Sequence
 		 */
 		/* Set RESET_BAR to 0 */
 		gpio_set_value(LEOPARD_RESET_GPIO, 0);
 		/* Turn on VDD */
+		debg(Regulator 1v8 switching on);
 		regulator_enable(beagle_1v8);
 		mdelay(1);
+		debg(Regulator 2v8 switching on);
 		regulator_enable(beagle_2v8);
 
 		mdelay(50);
 		/* Enable EXTCLK */
+		debg(Setting isp xclk);
 		if (isp->platform_cb.set_xclk)
 			isp->platform_cb.set_xclk(isp, 24000000, CAM_USE_XCLKA);
 		/*
@@ -74,6 +80,7 @@ static int beagle_mt9v113_s_power(struct v4l2_subdev *subdev, int on)
 		 */
 		udelay(5);
 	} else {
+		debg(Power off);
 		/*
 		 * Power Down Sequence
 		 */
