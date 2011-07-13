@@ -57,6 +57,8 @@ static const unsigned int ccdc_fmts[] = {
 	V4L2_MBUS_FMT_SRGGB12_1X12,
 	V4L2_MBUS_FMT_SBGGR12_1X12,
 	V4L2_MBUS_FMT_SGBRG12_1X12,
+        V4L2_MBUS_FMT_UYVY8_2X8,
+        V4L2_MBUS_FMT_YUYV8_2X8,
 };
 
 /*
@@ -1176,7 +1178,13 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 	else
 		syn_mode &= ~ISPCCDC_SYN_MODE_PACK8;
 
-	isp_reg_writel(isp, syn_mode, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SYN_MODE);
+       if ((format->code == V4L2_MBUS_FMT_YUYV8_2X8) ||
+                       (format->code == V4L2_MBUS_FMT_UYVY8_2X8))
+               syn_mode |= ISPCCDC_SYN_MODE_INPMOD_YCBCR16;
+       else
+               syn_mode &= ~ISPCCDC_SYN_MODE_INPMOD_MASK;
+
+       isp_reg_writel(isp, syn_mode, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SYN_MODE);
 
 	/* Mosaic filter */
 	switch (format->code) {

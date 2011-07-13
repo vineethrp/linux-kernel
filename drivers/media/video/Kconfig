@@ -319,6 +319,13 @@ config VIDEO_MT9P031
         This is a Video4Linux2 sensor-level driver for the Aptina
         (Micron) mt9p031 5 Mpixel camera.
 
+config VIDEO_MT9V113
+       tristate "Aptina MT9V113 VGA CMOS IMAGE SENSOR"
+       depends on VIDEO_V4L2 && I2C
+       ---help---
+         This is a Video4Linux2 sensor-level driver for the Aptina MT9V113
+         image sensor.
+
 config VIDEO_SAA7110
 	tristate "Philips SAA7110 video decoder"
 	depends on VIDEO_V4L2 && I2C
