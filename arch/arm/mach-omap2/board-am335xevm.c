@@ -1088,7 +1088,9 @@ static struct i2c_board_info __initdata am335x_i2c_boardinfo[] = {
 	{
 		I2C_BOARD_INFO("tlc59108", 0x40),
 	},
-
+	{
+		I2C_BOARD_INFO("tps65217", 0x24),
+	},
 };
 
 static struct omap_musb_board_data musb_board_data = {
