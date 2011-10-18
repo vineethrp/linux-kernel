@@ -189,6 +189,7 @@ struct evm_dev_cfg {
 #define	CPLD_CFG_REG	0x10 /* Configuration Register */
 
 static struct i2c_client *cpld_client;
+static struct i2c_client *pmic_client;
 
 static u32 am335x_evm_id;
 
@@ -952,9 +953,17 @@ static void setup_ip_phone_evm(void)
 	_configure_device(IP_PHN_EVM, ip_phn_evm_dev_cfg, PROFILE_NONE);
 }
 
+static void pmic_read() {
+	int val;
+	val = i2c_smbus_read_byte_data(pmic_client, 0x0);
+	printk("PMIC CHIP ID: %x\n", val);
+}
+
 static void setup_beaglebone(void)
 {
 	pr_info("The board is a AM335x Beaglebone.\n");
+
+	pmic_read();
 
 	_configure_device(LOW_COST_EVM, beaglebone_dev_cfg, PROFILE_NONE);
 }
@@ -1107,6 +1116,19 @@ static int cpld_reg_probe(struct i2c_client *client,
 	return 0;
 }
 
+static int pmic_probe(struct i2c_client *client,
+	    const struct i2c_device_id *id)
+{
+	pmic_client = client;
+	return 0;
+}
+
+static int __devexit pmic_remove(struct i2c_client *client)
+{
+	pmic_client = NULL;
+	return 0;
+}
+
 static int __devexit cpld_reg_remove(struct i2c_client *client)
 {
 	cpld_client = NULL;
@@ -1127,9 +1149,25 @@ static struct i2c_driver cpld_reg_driver = {
 	.id_table	= cpld_reg_id,
 };
 
+static const struct i2c_device_id tps65217_id[] = {
+	{ "tps65217", 0 },
+	{ }
+};
+
+static struct i2c_driver tps65217_pmic = {
+	.driver = {
+		.name	= "tps65217_pmic",
+	},
+	.probe		= pmic_probe,
+	.remove		= pmic_remove,
+	.id_table	= tps65217_id,
+};
+
+
 static void evm_init_cpld(void)
 {
 	i2c_add_driver(&cpld_reg_driver);
+	i2c_add_driver(&tps65217_pmic);
 }
 
 static void __init am335x_evm_i2c_init(void)
