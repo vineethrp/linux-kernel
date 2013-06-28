@@ -53,10 +53,12 @@
 
 struct edma_desc {
 	struct virt_dma_desc		vdesc;
-	struct list_head		node;
 	int				absync;
 	int				pset_nr;
 	struct edmacc_param		pset[0];
+	bool	cyclic;
+	int	cyclic_buf_len;
+	int	cyclic_period_len;
 };
 
 struct edma_cc;
@@ -80,6 +82,8 @@ struct edma_cc {
 	int				num_slave_chans;
 	int				dummy_slot;
 };
+
+// void edma_cyclic_update_slot(int)
 
 static inline struct edma_cc *to_edma_cc(struct dma_device *d)
 {
@@ -142,6 +146,12 @@ static void edma_execute(struct edma_chan *echan)
 			edesc->pset[i].src_dst_bidx,
 			edesc->pset[i].src_dst_cidx,
 			edesc->pset[i].link_bcntrld);
+
+		if (edesc->cyclic == true) {
+			edma_write_slot(echan->slot[0], &edesc->pset[0]);
+			edma_link(echan->slot[0], echan->slot[0]);
+		}
+
 		/* Link to the previous slot if not the last set */
 		if (i != (edesc->pset_nr - 1))
 			edma_link(echan->slot[i], echan->slot[i+1]);
@@ -319,6 +329,76 @@ static int edma_config_pset(struct dma_chan *chan, struct edmacc_param *pset,
 	 */
 	pset->link_bcntrld = 0xffffffff;
 	return absync;
+}
+
+static struct dma_async_tx_descriptor *edma_prep_dma_cyclic(
+	struct dma_chan *chan, dma_addr_t buf_addr, size_t buf_len,
+	size_t period_len, enum dma_transfer_direction direction, unsigned long flags,
+	void *context)
+{
+	struct edma_chan *echan = to_edma_chan(chan);
+	struct device *dev = chan->device->dev;
+	struct edma_desc *edesc;
+	dma_addr_t src_addr = 0, dst_addr = 0;
+	enum dma_slave_buswidth dev_width;
+	u32 burst;
+	int ret;
+
+	if (unlikely(!echan || !buf_len || !period_len))
+		return NULL;
+
+	if (direction == DMA_DEV_TO_MEM) {
+		src_addr = echan->cfg.src_addr;
+		dev_width = echan->cfg.src_addr_width;
+		burst = echan->cfg.src_maxburst;
+	} else if (direction == DMA_MEM_TO_DEV) {
+		dst_addr = echan->cfg.dst_addr;
+		dev_width = echan->cfg.dst_addr_width;
+		burst = echan->cfg.dst_maxburst;
+	} else {
+		dev_err(dev, "%s: bad direction?\n", __func__);
+		return NULL;
+	}
+
+	if (dev_width == DMA_SLAVE_BUSWIDTH_UNDEFINED) {
+		dev_err(dev, "Undefined slave buswidth\n");
+		return NULL;
+	}
+
+	edesc = kzalloc(sizeof(*edesc) +
+		sizeof(edesc->pset[0]), GFP_ATOMIC);
+	if (!edesc) {
+		dev_dbg(dev, "Failed to allocate a descriptor\n");
+		return NULL;
+	}
+
+	edesc->pset_nr = 1;
+	edesc->cyclic = true;
+	edesc->cyclic_buf_len = buf_len;
+	edesc->cyclic_period_len = period_len;
+
+	/* Allocate a PaRAM slot, if needed */
+	if (echan->slot[0] < 0) {
+		echan->slot[0] =
+			edma_alloc_slot(EDMA_CTLR(echan->ch_num),
+					EDMA_SLOT_ANY);
+		if (echan->slot[0] < 0) {
+			dev_err(dev, "Failed to allocate slot\n");
+			return NULL;
+		}
+	}
+
+
+	ret = edma_config_pset(chan, &edesc->pset[0], src_addr, dst_addr,
+				      burst, dev_width, period_len, direction);
+	if(ret < 0)
+		return NULL;
+
+	edesc->absync = ret;
+	edesc->pset[0].opt |= TCINTEN;
+
+	/* TODO tx_flags (last parameter) needs to be investigated...\n" */
+	return vchan_tx_prep(&echan->vchan, &edesc->vdesc, 0);
 }
 
 static struct dma_async_tx_descriptor *edma_prep_slave_sg(
@@ -605,6 +685,7 @@ static void edma_dma_init(struct edma_cc *ecc, struct dma_device *dma,
 			  struct device *dev)
 {
 	dma->device_prep_slave_sg = edma_prep_slave_sg;
+	dma->device_prep_dma_cyclic = edma_prep_dma_cyclic;
 	dma->device_alloc_chan_resources = edma_alloc_chan_resources;
 	dma->device_free_chan_resources = edma_free_chan_resources;
 	dma->device_issue_pending = edma_issue_pending;
