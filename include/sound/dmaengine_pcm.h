@@ -45,6 +45,8 @@ int snd_dmaengine_pcm_close(struct snd_pcm_substream *substream);
 
 int snd_dmaengine_pcm_open_request_chan(struct snd_pcm_substream *substream,
 	dma_filter_fn filter_fn, void *filter_data);
+int snd_dmaengine_pcm_open_request_slave_chan(
+	struct snd_pcm_substream *substream);
 int snd_dmaengine_pcm_close_release_chan(struct snd_pcm_substream *substream);
 
 struct dma_chan *snd_dmaengine_pcm_request_channel(dma_filter_fn filter_fn,

@@ -334,6 +334,21 @@ int snd_dmaengine_pcm_open_request_chan(struct snd_pcm_substream *substream,
 }
 EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_open_request_chan);
 
+int snd_dmaengine_pcm_open_request_slave_chan(
+	struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct device *dev = rtd->cpu_dai->dev;
+	struct dma_chan *chan;
+
+	if(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		chan = dma_request_slave_channel(dev, "tx");
+	else
+		chan = dma_request_slave_channel(dev, "rx");
+	return snd_dmaengine_pcm_open(substream, chan);
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_open_request_slave_chan);
+
 /**
  * snd_dmaengine_pcm_close - Close a dmaengine based PCM substream
  * @substream: PCM substream
