@@ -23,6 +23,7 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include <sound/dmaengine_pcm.h>
 
 #include <asm/dma.h>
 
@@ -684,7 +685,10 @@ static int davinci_pcm_open(struct snd_pcm_substream *substream)
 	struct davinci_runtime_data *prtd;
 	struct snd_pcm_hardware *ppcm;
 	int ret = 0;
+
+#if 0
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+
 	struct davinci_pcm_dma_params *pa;
 	struct davinci_pcm_dma_params *params;
 
@@ -693,9 +697,10 @@ static int davinci_pcm_open(struct snd_pcm_substream *substream)
 		return -ENODEV;
 	params = &pa[substream->stream];
 
+	allocate_sram(substream, params->sram_pool, params->sram_size, ppcm);
+#endif
 	ppcm = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) ?
 			&pcm_hardware_playback : &pcm_hardware_capture;
-	allocate_sram(substream, params->sram_pool, params->sram_size, ppcm);
 	snd_soc_set_runtime_hwparams(substream, ppcm);
 	/* ensure that buffer size is a multiple of period size */
 	ret = snd_pcm_hw_constraint_integer(runtime,
@@ -703,6 +708,7 @@ static int davinci_pcm_open(struct snd_pcm_substream *substream)
 	if (ret < 0)
 		return ret;
 
+#if 0
 	prtd = kzalloc(sizeof(struct davinci_runtime_data), GFP_KERNEL);
 	if (prtd == NULL)
 		return -ENOMEM;
@@ -718,11 +724,14 @@ static int davinci_pcm_open(struct snd_pcm_substream *substream)
 	runtime->private_data = prtd;
 
 	ret = davinci_pcm_dma_request(substream);
+#endif
+
+	ret = snd_dmaengine_pcm_open_request_slave_chan(substream);
+
 	if (ret) {
 		printk(KERN_ERR "davinci_pcm: Failed to get dma channels\n");
 		kfree(prtd);
 	}
-
 	return ret;
 }
 
@@ -763,8 +772,44 @@ static int davinci_pcm_close(struct snd_pcm_substream *substream)
 static int davinci_pcm_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *hw_params)
 {
-	return snd_pcm_lib_malloc_pages(substream,
+	int ret;
+	struct dma_slave_config config;
+	struct dma_chan *chan;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct davinci_pcm_dma_params *pa;
+	struct davinci_pcm_dma_params *params;
+
+	pa = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
+	if (!pa)
+		return -ENODEV;
+	params = &pa[substream->stream];
+
+	/* Depending on the direction, the correct src/dst will be
+	   used up by the DMAEngine driver, the other is ignored as in
+	   Cyclic cases, the buffer address is explictly passed */
+
+	config.src_addr = params->dma_addr;
+	config.dst_addr = params->dma_addr;
+	config.src_addr_width = params->acnt;
+	config.dst_addr_width = params->acnt;
+	config.src_maxburst = params->fifo_level;
+	config.dst_maxburst = params->fifo_level;
+
+        if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+                config.direction = DMA_MEM_TO_DEV;
+        else
+                config.direction = DMA_DEV_TO_MEM;
+	
+	ret = snd_pcm_lib_malloc_pages(substream,
 					params_buffer_bytes(hw_params));
+	if(ret < 0)
+		return ret;
+
+	chan = snd_dmaengine_pcm_get_chan(substream);
+	if (!chan)
+		return -EINVAL;
+
+        return dmaengine_slave_config(chan, &config);
 }
 
 static int davinci_pcm_hw_free(struct snd_pcm_substream *substream)
@@ -785,13 +830,14 @@ static int davinci_pcm_mmap(struct snd_pcm_substream *substream,
 
 static struct snd_pcm_ops davinci_pcm_ops = {
 	.open = 	davinci_pcm_open,
-	.close = 	davinci_pcm_close,
+	.close =	snd_dmaengine_pcm_close_release_chan,
 	.ioctl = 	snd_pcm_lib_ioctl,
 	.hw_params = 	davinci_pcm_hw_params,
 	.hw_free = 	davinci_pcm_hw_free,
-	.prepare = 	davinci_pcm_prepare,
-	.trigger = 	davinci_pcm_trigger,
-	.pointer = 	davinci_pcm_pointer,
+	.trigger =	snd_dmaengine_pcm_trigger,
+	// .prepare = 	davinci_pcm_prepare,
+	.pointer = 	snd_dmaengine_pcm_pointer,
+	// .pointer = 	davinci_pcm_pointer,
 	.mmap = 	davinci_pcm_mmap,
 };
 
