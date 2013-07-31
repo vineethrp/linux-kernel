@@ -899,7 +899,6 @@ static struct omap_clk am33xx_clks[] = {
 	CLK("481cc000.d_can",	NULL,		&dcan0_fck),
 	CLK(NULL,	"dcan1_fck",		&dcan1_fck),
 	CLK("481d0000.d_can",	NULL,		&dcan1_fck),
-	CLK(NULL,	"debugss_ick",		&debugss_ick),
 	CLK(NULL,	"pruss_ocp_gclk",	&pruss_ocp_gclk),
 	CLK(NULL,	"mcasp0_fck",		&mcasp0_fck),
 	CLK(NULL,	"mcasp1_fck",		&mcasp1_fck),
