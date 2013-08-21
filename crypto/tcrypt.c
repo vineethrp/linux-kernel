@@ -39,7 +39,7 @@
 /*
  * Need slab memory for testing (size in number of pages).
  */
-#define TVMEMSIZE	4
+#define TVMEMSIZE	16
 
 /*
 * Used by test_cipher_speed()
@@ -56,6 +56,7 @@ static char *alg = NULL;
 static u32 type;
 static u32 mask;
 static int mode;
+static int bsize;
 static char *tvmem[TVMEMSIZE];
 
 static char *check[] = {
@@ -797,6 +798,137 @@ out:
 			(cycles + 4) / 8, blen);
 
 	return ret;
+}
+
+static u32 block_sizes_dma[] = { 8192, 0 };
+
+static void test_acipher_speed_dma(const char *algo, int enc, unsigned int sec,
+			       struct cipher_speed_template *template,
+			       unsigned int tcount, u8 *keysize)
+{
+	unsigned int ret, i, j, k, iv_len;
+	struct tcrypt_result tresult;
+	const char *key;
+	char iv[128];
+	struct ablkcipher_request *req;
+	struct crypto_ablkcipher *tfm;
+	const char *e;
+	u32 *b_size;
+
+	if (enc == ENCRYPT)
+		e = "encryption";
+	else
+		e = "decryption";
+
+	pr_info("\ntesting speed of async %s %s\n", algo, e);
+
+	init_completion(&tresult.completion);
+
+	tfm = crypto_alloc_ablkcipher(algo, 0, 0);
+
+	if (IS_ERR(tfm)) {
+		pr_err("failed to load transform for %s: %ld\n", algo,
+		       PTR_ERR(tfm));
+		return;
+	}
+
+	req = ablkcipher_request_alloc(tfm, GFP_KERNEL);
+	if (!req) {
+		pr_err("tcrypt: skcipher: Failed to allocate request for %s\n",
+		       algo);
+		goto out;
+	}
+
+	ablkcipher_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG,
+					tcrypt_complete, &tresult);
+
+	i = 0;
+	do {
+		b_size = block_sizes_dma;
+
+		if(bsize) block_sizes_dma[0] = bsize;
+
+		do {
+			struct scatterlist sg[TVMEMSIZE];
+
+			if ((*keysize + *b_size) > TVMEMSIZE * PAGE_SIZE) {
+				pr_err("template (%u) too big for "
+				       "tvmem (%lu)\n", *keysize + *b_size,
+				       TVMEMSIZE * PAGE_SIZE);
+				goto out_free_req;
+			}
+
+			pr_info("test %u (%d bit key, %d byte blocks): ", i,
+				*keysize * 8, *b_size);
+
+			memset(tvmem[0], 0xff, PAGE_SIZE);
+
+			/* set key, plain text and IV */
+			key = tvmem[0];
+			for (j = 0; j < tcount; j++) {
+				if (template[j].klen == *keysize) {
+					key = template[j].key;
+					break;
+				}
+			}
+
+			crypto_ablkcipher_clear_flags(tfm, ~0);
+
+			ret = crypto_ablkcipher_setkey(tfm, key, *keysize);
+			if (ret) {
+				pr_err("setkey() failed flags=%x\n",
+					crypto_ablkcipher_get_flags(tfm));
+				goto out_free_req;
+			}
+
+			sg_init_table(sg, TVMEMSIZE);
+
+			k = *keysize + *b_size;
+			if (k > PAGE_SIZE) {
+				sg_set_buf(sg, tvmem[0] + *keysize,
+				   PAGE_SIZE - *keysize);
+				k -= PAGE_SIZE;
+				j = 1;
+				while (k > PAGE_SIZE) {
+					sg_set_buf(sg + j, tvmem[j], PAGE_SIZE);
+					memset(tvmem[j], 0xff, PAGE_SIZE);
+					j++;
+					k -= PAGE_SIZE;
+				}
+				sg_set_buf(sg + j, tvmem[j], k);
+				memset(tvmem[j], 0xff, k);
+			} else {
+				sg_set_buf(sg, tvmem[0] + *keysize, *b_size);
+			}
+
+			iv_len = crypto_ablkcipher_ivsize(tfm);
+			if (iv_len)
+				memset(&iv, 0xff, iv_len);
+
+			ablkcipher_request_set_crypt(req, sg, sg, *b_size, iv);
+
+			if (sec)
+				ret = test_acipher_jiffies(req, enc,
+							   *b_size, sec);
+			else
+				ret = test_acipher_cycles(req, enc,
+							  *b_size);
+
+			if (ret) {
+				pr_err("%s() failed flags=%x\n", e,
+					crypto_ablkcipher_get_flags(tfm));
+				break;
+			}
+			b_size++;
+			i++;
+		} while (*b_size);
+		keysize++;
+	} while (*keysize);
+
+out_free_req:
+	ablkcipher_request_free(req);
+out:
+	crypto_free_ablkcipher(tfm);
 }
 
 static void test_acipher_speed(const char *algo, int enc, unsigned int sec,
@@ -1783,6 +1915,13 @@ static int do_test(int m)
 				   speed_template_8_32);
 		break;
 
+	/* HACK: For DMA testing */
+	case 510:
+		test_acipher_speed_dma("ecb(aes)", ENCRYPT, 0, NULL, 0,
+				   speed_template_dma_tests);
+		break;
+
+
 	case 1000:
 		test_available();
 		break;
@@ -1849,6 +1988,7 @@ module_param(type, uint, 0);
 module_param(mask, uint, 0);
 module_param(mode, int, 0);
 module_param(sec, uint, 0);
+module_param(bsize, uint, 0);
 MODULE_PARM_DESC(sec, "Length in seconds of speed tests "
 		      "(defaults to zero which uses CPU cycles instead)");
 

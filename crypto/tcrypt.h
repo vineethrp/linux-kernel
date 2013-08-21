@@ -57,6 +57,8 @@ static u8 speed_template_32_48[] = {32, 48, 0};
 static u8 speed_template_32_48_64[] = {32, 48, 64, 0};
 static u8 speed_template_32_64[] = {32, 64, 0};
 
+static u8 speed_template_dma_tests[] = { 16, 0 };
+
 /*
  * Digest speed tests
  */
