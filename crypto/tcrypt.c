@@ -57,6 +57,7 @@ static u32 type;
 static u32 mask;
 static int mode;
 static int bsize;
+static int bufshift;
 static char *tvmem[TVMEMSIZE];
 
 static char *check[] = {
@@ -890,7 +891,7 @@ static void test_acipher_speed_dma(const char *algo, int enc, unsigned int sec,
 				k -= PAGE_SIZE;
 				j = 1;
 				while (k > PAGE_SIZE) {
-					sg_set_buf(sg + j, tvmem[j], PAGE_SIZE);
+					sg_set_buf(sg + j, tvmem[j], PAGE_SIZE >> bufshift);
 					memset(tvmem[j], 0xff, PAGE_SIZE);
 					j++;
 					k -= PAGE_SIZE;
@@ -1989,6 +1990,7 @@ module_param(mask, uint, 0);
 module_param(mode, int, 0);
 module_param(sec, uint, 0);
 module_param(bsize, uint, 0);
+module_param(bufshift, uint, 0);
 MODULE_PARM_DESC(sec, "Length in seconds of speed tests "
 		      "(defaults to zero which uses CPU cycles instead)");
 
