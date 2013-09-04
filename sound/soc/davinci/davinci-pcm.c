@@ -651,6 +651,7 @@ static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
 static snd_pcm_uframes_t
 davinci_pcm_pointer(struct snd_pcm_substream *substream)
 {
+#if 0
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct davinci_runtime_data *prtd = runtime->private_data;
 	unsigned int offset;
@@ -675,6 +676,10 @@ davinci_pcm_pointer(struct snd_pcm_substream *substream)
 	offset = bytes_to_frames(runtime, asp_count);
 	if (offset >= runtime->buffer_size)
 		offset = 0;
+#endif
+	snd_pcm_uframes_t offset;
+
+	offset = snd_dmaengine_pcm_pointer(substream);
 
 	return offset;
 }
