@@ -841,7 +841,7 @@ static struct snd_pcm_ops davinci_pcm_ops = {
 	.hw_free = 	davinci_pcm_hw_free,
 	.trigger =	snd_dmaengine_pcm_trigger,
 	// .prepare = 	davinci_pcm_prepare,
-	.pointer = 	snd_dmaengine_pcm_pointer,
+	.pointer = 	snd_dmaengine_pcm_pointer_no_residue,
 	// .pointer = 	davinci_pcm_pointer,
 	.mmap = 	davinci_pcm_mmap,
 };
