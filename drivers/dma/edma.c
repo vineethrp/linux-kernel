@@ -47,7 +47,7 @@
 #endif /* CONFIG_ARCH_DAVINCI_DA8XX */
 
 /* Max of 16 segments per channel to conserve PaRAM slots */
-#define MAX_NR_SG		16
+#define MAX_NR_SG		20
 #define EDMA_MAX_SLOTS		MAX_NR_SG
 #define EDMA_DESCRIPTORS	16
 
