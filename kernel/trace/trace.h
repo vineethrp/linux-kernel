@@ -1805,4 +1805,32 @@ static inline void trace_event_eval_update(struct trace_eval_map **map, int len)
 
 extern struct trace_iterator *tracepoint_print_iter;
 
+#if defined(CONFIG_IRQSOFF_TRACER) || defined(CONFIG_PREEMPT_TRACER)
+void start_critical_timings_tracer(void);
+void stop_critical_timings_tracer(void);
+#else
+#define start_critical_timings_tracer() do { } while(0)
+#define stop_critical_timings_tracer() do { } while(0)
+#endif
+
+#ifdef CONFIG_IRQSOFF_TRACER
+void trace_hardirqs_on_tracer(void);
+void trace_hardirqs_off_tracer(void);
+void trace_hardirqs_on_caller_tracer(unsigned long);
+void trace_hardirqs_off_caller_tracer(unsigned long);
+#else
+#define trace_hardirqs_on_tracer() do { } while(0)
+#define trace_hardirqs_off_tracer() do { } while(0)
+#define trace_hardirqs_on_caller_tracer(x) do { } while(0)
+#define trace_hardirqs_off_caller_tracer(x) do { } while(0)
+#endif
+
+#ifdef CONFIG_PREEMPT_TRACER
+void trace_preempt_on_tracer(unsigned long, unsigned long);
+void trace_preempt_off_tracer(unsigned long, unsigned long);
+#else
+#define trace_preempt_on_tracer(x, y) do { } while(0)
+#define trace_preempt_off_tracer(x, y) do { } while(0)
+#endif
+
 #endif /* _LINUX_KERNEL_TRACE_H */

@@ -159,6 +159,10 @@ config FUNCTION_GRAPH_TRACER
 	  the return value. This is done by setting the current return
 	  address on the current task structure into a stack of calls.
 
+config IRQSOFF_COMMON
+	bool "Common infrastructure used by preempt/irqsoff tracers and events"
+	help
+	  Common infrastructure used by preempt/irqsoff tracers and events.
 
 config IRQSOFF_TRACER
 	bool "Interrupts-off Latency Tracer"
@@ -171,6 +175,7 @@ config IRQSOFF_TRACER
 	select RING_BUFFER_ALLOW_SWAP
 	select TRACER_SNAPSHOT
 	select TRACER_SNAPSHOT_PER_CPU_SWAP
+	select IRQSOFF_COMMON
 	help
 	  This option measures the time spent in irqs-off critical
 	  sections, with microsecond accuracy.
@@ -195,6 +200,7 @@ config PREEMPT_TRACER
 	select RING_BUFFER_ALLOW_SWAP
 	select TRACER_SNAPSHOT
 	select TRACER_SNAPSHOT_PER_CPU_SWAP
+	select IRQSOFF_COMMON
 	help
 	  This option measures the time spent in preemption-off critical
 	  sections, with microsecond accuracy.

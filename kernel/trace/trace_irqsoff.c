@@ -432,19 +432,17 @@ stop_critical_timing(unsigned long ip, unsigned long parent_ip)
 }
 
 /* start and stop critical timings used to for stoppage (in idle) */
-void start_critical_timings(void)
+void start_critical_timings_tracer(void)
 {
 	if (preempt_trace() || irq_trace())
 		start_critical_timing(CALLER_ADDR0, CALLER_ADDR1);
 }
-EXPORT_SYMBOL_GPL(start_critical_timings);
 
-void stop_critical_timings(void)
+void stop_critical_timings_tracer(void)
 {
 	if (preempt_trace() || irq_trace())
 		stop_critical_timing(CALLER_ADDR0, CALLER_ADDR1);
 }
-EXPORT_SYMBOL_GPL(stop_critical_timings);
 
 #ifdef CONFIG_IRQSOFF_TRACER
 #ifdef CONFIG_PROVE_LOCKING
@@ -481,33 +479,29 @@ inline void print_irqtrace_events(struct task_struct *curr)
 /*
  * We are only interested in hardirq on/off events:
  */
-void trace_hardirqs_on(void)
+void trace_hardirqs_on_tracer(void)
 {
 	if (!preempt_trace() && irq_trace())
 		stop_critical_timing(CALLER_ADDR0, CALLER_ADDR1);
 }
-EXPORT_SYMBOL(trace_hardirqs_on);
 
-void trace_hardirqs_off(void)
+void trace_hardirqs_off_tracer(void)
 {
 	if (!preempt_trace() && irq_trace())
 		start_critical_timing(CALLER_ADDR0, CALLER_ADDR1);
 }
-EXPORT_SYMBOL(trace_hardirqs_off);
 
-__visible void trace_hardirqs_on_caller(unsigned long caller_addr)
+__visible void trace_hardirqs_on_caller_tracer(unsigned long caller_addr)
 {
 	if (!preempt_trace() && irq_trace())
 		stop_critical_timing(CALLER_ADDR0, caller_addr);
 }
-EXPORT_SYMBOL(trace_hardirqs_on_caller);
 
-__visible void trace_hardirqs_off_caller(unsigned long caller_addr)
+__visible void trace_hardirqs_off_caller_tracer(unsigned long caller_addr)
 {
 	if (!preempt_trace() && irq_trace())
 		start_critical_timing(CALLER_ADDR0, caller_addr);
 }
-EXPORT_SYMBOL(trace_hardirqs_off_caller);
 
 #endif /* CONFIG_PROVE_LOCKING */
 #endif /*  CONFIG_IRQSOFF_TRACER */
