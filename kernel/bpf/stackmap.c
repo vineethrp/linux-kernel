@@ -225,7 +225,23 @@ int bpf_stackmap_copy(struct bpf_map *map, void *key, void *value)
 
 static int stack_map_get_next_key(struct bpf_map *map, void *key, void *next_key)
 {
-	return -EINVAL;
+	struct bpf_stack_map *smap = container_of(map, struct bpf_stack_map, map);
+	u32 id = 0;
+
+	if (key) {
+		id = *(u32 *)key;
+		if (unlikely(id >= smap->n_buckets))
+			return -ENOENT;
+		id++;
+	}
+
+	for ( ; id < smap->n_buckets; id++) {
+		if (READ_ONCE(smap->buckets[id])) {
+			*(u32 *)next_key = id;
+			return 0;
+		}
+	}
+	return -ENOENT;
 }
 
 static int stack_map_update_elem(struct bpf_map *map, void *key, void *value,
