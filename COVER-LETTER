@@ -1,0 +1,82 @@
+Hi,
+Here is the latest "fast mremap" series. The main change in this submission is
+to enable the fast mremap optimization on a per-architecture basis to prevent
+possible issues with architectures that may not behave well with such a change.
+
+x86: select HAVE_MOVE_PMD for faster mremap
+
+arm64: select HAVE_MOVE_PMD for faster mremap
+
+mm: speed up mremap by 500x on large regions (v2)
+v1->v2: Added support for per-arch enablement with a new HAVE_MOVE_PMD config
+	(Kirill Shutemov)
+v2->v3: Fixed some style errors (Christoph Hellwig)
+	Updated commit to better reflect that THP pages are unaffected (Dan Col).
+
+treewide: remove unused address argument from pte_alloc functions (v2)
+v1->v2: fix arch/um/ prototype which was missed in v1 (Anton Ivanov)
+        update changelog with manual fixups for m68k and microblaze.
+
+Cc: anton.ivanov@kot-begemot.co.uk
+Cc: Andrey Ryabinin <aryabinin@virtuozzo.com>
+Cc: Andy Lutomirski <luto@kernel.org>
+Cc: Borislav Petkov <bp@alien8.de>
+Cc: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Chris Zankel <chris@zankel.net>
+Cc: dancol@google.com
+Cc: Dave Hansen <dave.hansen@linux.intel.com>
+Cc: "David S. Miller" <davem@davemloft.net>
+Cc: elfring@users.sourceforge.net
+Cc: Fenghua Yu <fenghua.yu@intel.com>
+Cc: Geert Uytterhoeven <geert@linux-m68k.org>
+Cc: Guan Xuetao <gxt@pku.edu.cn>
+Cc: Helge Deller <deller@gmx.de>
+Cc: hughd@google.com
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: "James E.J. Bottomley" <jejb@parisc-linux.org>
+Cc: Jeff Dike <jdike@addtoit.com>
+Cc: Jonas Bonn <jonas@southpole.se>
+Cc: Julia Lawall <Julia.Lawall@lip6.fr>
+Cc: kasan-dev@googlegroups.com
+Cc: kernel-team@android.com
+Cc: kvmarm@lists.cs.columbia.edu
+Cc: Ley Foon Tan <lftan@altera.com>
+Cc: linux-alpha@vger.kernel.org
+Cc: linux-hexagon@vger.kernel.org
+Cc: linux-ia64@vger.kernel.org
+Cc: linux-kernel@vger.kernel.org
+Cc: linux-m68k@lists.linux-m68k.org
+Cc: linux-mips@linux-mips.org
+Cc: linux-mm@kvack.org
+Cc: linux-parisc@vger.kernel.org
+Cc: linuxppc-dev@lists.ozlabs.org
+Cc: linux-riscv@lists.infradead.org
+Cc: linux-s390@vger.kernel.org
+Cc: linux-sh@vger.kernel.org
+Cc: linux-snps-arc@lists.infradead.org
+Cc: linux-um@lists.infradead.org
+Cc: linux-xtensa@linux-xtensa.org
+Cc: pantin@google.com
+Cc: lokeshgidra@google.com
+Cc: Max Filippov <jcmvbkbc@gmail.com>
+Cc: Michal Hocko <mhocko@kernel.org>
+Cc: minchan@kernel.org
+Cc: nios2-dev@lists.rocketboards.org
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Richard Weinberger <richard@nod.at>
+Cc: Rich Felker <dalias@libc.org>
+Cc: Sam Creasey <sammy@sammy.net>
+Cc: sparclinux@vger.kernel.org
+Cc: Stafford Horne <shorne@gmail.com>
+Cc: Stefan Kristiansson <stefan.kristiansson@saunalahti.fi>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: Tony Luck <tony.luck@intel.com>
+Cc: Will Deacon <will.deacon@arm.com>
+Cc: x86@kernel.org (maintainer:X86 ARCHITECTURE (32-BIT AND 64-BIT))
+Cc: Yoshinori Sato <ysato@users.sourceforge.jp>
+Cc: kirill@shutemov.name
+Cc: akpm@linux-foundation.org
+Cc: Martin Schwidefsky <schwidefsky@de.ibm.com>
+
+option-skip-get-maint
+option-prefix PATCH
