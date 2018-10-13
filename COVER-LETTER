@@ -1,0 +1,94 @@
+Hi,
+Here is the "fast mremap" series. This just a repost with Kirill's Acked-bys
+added and William's Reviewed-by added. Also fixed a UML build error reported
+last week. I would like this to be considered for linux -next. The performance
+numbers in the series are for testing on x86. The config enablement patch for
+arm64 will be posted in the future after testing (see notes below).
+
+List of patches in series:
+
+(1) mm: select HAVE_MOVE_PMD in x86 for faster mremap
+
+(2) mm: speed up mremap by 20x on large regions (v5)
+v1->v2: Added support for per-arch enablement (Kirill Shutemov)
+v2->v3: Updated commit message to state the optimization may also
+	run for non-thp type of systems (Daniel Col).
+v3->v4: Remove useless pmd_lock check (Kirill Shutemov)
+	Rebased ontop of Linus's master, updated perf results based
+        on x86 testing. Added Kirill's Acks.
+v4->v5: Added William's Reviewed-by. Fixed arch/um build error
+	due to set_pmd_at not defined. Rebased on linux-next/akpm.
+TODO: Disable optimization if MEM_SOFT_DIRTY. May not work with optimization.
+
+(3) mm: treewide: remove unused address argument from pte_alloc functions (v2)
+v1->v2: fix arch/um/ prototype which was missed in v1 (Anton Ivanov)
+        update changelog with manual fixups for m68k and microblaze.
+
+not included - (4) mm: select HAVE_MOVE_PMD in arm64 for faster mremap
+    This patch is dropped since last posting pending further performance
+    testing on arm64 with new TLB gather updates. See notes in patch
+    titled "mm: speed up mremap by 500x on large regions" for more
+    details.
+
+Cc: anton.ivanov@kot-begemot.co.uk
+Cc: Andrey Ryabinin <aryabinin@virtuozzo.com>
+Cc: Andy Lutomirski <luto@kernel.org>
+Cc: Borislav Petkov <bp@alien8.de>
+Cc: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Chris Zankel <chris@zankel.net>
+Cc: dancol@google.com
+Cc: Dave Hansen <dave.hansen@linux.intel.com>
+Cc: "David S. Miller" <davem@davemloft.net>
+Cc: Fenghua Yu <fenghua.yu@intel.com>
+Cc: Geert Uytterhoeven <geert@linux-m68k.org>
+Cc: Guan Xuetao <gxt@pku.edu.cn>
+Cc: Helge Deller <deller@gmx.de>
+Cc: hughd@google.com
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: "James E.J. Bottomley" <jejb@parisc-linux.org>
+Cc: Jeff Dike <jdike@addtoit.com>
+Cc: Jonas Bonn <jonas@southpole.se>
+Cc: Julia Lawall <Julia.Lawall@lip6.fr>
+Cc: kasan-dev@googlegroups.com
+Cc: kernel-team@android.com
+Cc: kvmarm@lists.cs.columbia.edu
+Cc: Ley Foon Tan <lftan@altera.com>
+Cc: linux-alpha@vger.kernel.org
+Cc: linux-hexagon@vger.kernel.org
+Cc: linux-ia64@vger.kernel.org
+Cc: linux-kernel@vger.kernel.org
+Cc: linux-m68k@lists.linux-m68k.org
+Cc: linux-mips@linux-mips.org
+Cc: linux-mm@kvack.org
+Cc: linux-parisc@vger.kernel.org
+Cc: linuxppc-dev@lists.ozlabs.org
+Cc: linux-riscv@lists.infradead.org
+Cc: linux-s390@vger.kernel.org
+Cc: linux-sh@vger.kernel.org
+Cc: linux-snps-arc@lists.infradead.org
+Cc: linux-um@lists.infradead.org
+Cc: linux-xtensa@linux-xtensa.org
+Cc: pantin@google.com
+Cc: lokeshgidra@google.com
+Cc: Max Filippov <jcmvbkbc@gmail.com>
+Cc: Michal Hocko <mhocko@kernel.org>
+Cc: minchan@kernel.org
+Cc: nios2-dev@lists.rocketboards.org
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Richard Weinberger <richard@nod.at>
+Cc: Rich Felker <dalias@libc.org>
+Cc: Sam Creasey <sammy@sammy.net>
+Cc: sparclinux@vger.kernel.org
+Cc: Stafford Horne <shorne@gmail.com>
+Cc: Stefan Kristiansson <stefan.kristiansson@saunalahti.fi>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: Tony Luck <tony.luck@intel.com>
+Cc: Will Deacon <will.deacon@arm.com>
+Cc: x86@kernel.org (maintainer:X86 ARCHITECTURE (32-BIT AND 64-BIT))
+Cc: Yoshinori Sato <ysato@users.sourceforge.jp>
+Cc: kirill@shutemov.name
+Cc: akpm@linux-foundation.org
+
+option-skip-get-maint
+option-prefix PATCH -next-akpm
+option-subject Add support for fast mremap
