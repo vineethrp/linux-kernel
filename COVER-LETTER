@@ -1,0 +1,6 @@
+Here are some simple cleanups and fixes for ramoops in pstore. Let me know
+what you think, thanks.
+
+option-prefix PATCH RFC v2
+option-subject cleanups for pstore and ramoops
+option-no-kernel-team
