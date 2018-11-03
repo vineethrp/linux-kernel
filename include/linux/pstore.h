@@ -44,8 +44,45 @@ enum pstore_type_id {
 	PSTORE_TYPE_PPC_COMMON	= 6,
 	PSTORE_TYPE_PMSG	= 7,
 	PSTORE_TYPE_PPC_OPAL	= 8,
+	PSTORE_TYPE_MAX		= 9,
+	/* UNKNOWN returned from pstore_name_to_type if no type found */
 	PSTORE_TYPE_UNKNOWN	= 255
 };
+
+/* names should be in the same order as the above table */
+static const char __maybe_unused *__pstore_type_names[] = {
+	"dmesg",
+	"mce",
+	"console",
+	"ftrace",
+	"rtas",
+	"powerpc-ofw",
+	"powerpc-common",
+	"pmsg",
+	"powerpc-opal",
+	"event",
+};
+
+static const char *pstore_type_to_name(enum pstore_type_id type)
+{
+	if (WARN_ON_ONCE(type >= PSTORE_TYPE_MAX))
+		return "unknown";
+
+	return __pstore_type_names[type];
+}
+
+static inline enum pstore_type_id pstore_name_to_type(const char *name)
+{
+	int i;
+
+	for (i = 0; i < PSTORE_TYPE_MAX; i++) {
+		const char *str = pstore_type_to_name(i);
+		if (!strcmp(str, name))
+			return i;
+	}
+
+	return PSTORE_TYPE_UNKNOWN;
+}
 
 struct pstore_info;
 /**

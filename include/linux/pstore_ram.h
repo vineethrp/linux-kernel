@@ -22,6 +22,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
+#include <linux/pstore.h>
 #include <linux/types.h>
 
 /*
@@ -92,6 +93,7 @@ struct persistent_ram_zone {
 
 	raw_spinlock_t buffer_lock;
 	struct persistent_ram_buffer *buffer;
+	enum pstore_type_id type;
 	size_t buffer_size;
 
 	char *par_buffer;
