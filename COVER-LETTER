@@ -1,0 +1,53 @@
+---------
+TODO:
+- fix depends on sysfs
+- fix allmodconfig build time
+
+Cc: Andrew Morton <akpm@linux-foundation.org>
+Cc: ast@kernel.org
+Cc: atishp04@gmail.com
+Cc: dancol@google.com
+Cc: dietmar.eggemann@arm.com
+Cc: Dan Williams <dan.j.williams@intel.com>
+Cc: gregkh@linuxfoundation.org
+Cc: Guenter Roeck <groeck@chromium.org>
+Cc: "Joel Fernandes (Google)" <joel@joelfernandes.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: karim.yaghmour@opersys.com
+Cc: Kees Cook <keescook@chromium.org>
+Cc: linux-trace-devel@vger.kernel.org
+Cc: kernel-team@android.com
+Cc: linux-doc@vger.kernel.org
+Cc: linux-kernel@vger.kernel.org
+Cc: linux-kselftest@vger.kernel.org
+Cc: Manoj Rao <linux@manojrajarao.com>
+Cc: mhiramat@kernel.org
+Cc: Masahiro Yamada <yamada.masahiro@socionext.com>
+Cc: rdunlap@infradead.org
+Cc: rostedt@goodmis.org
+Cc: Shuah Khan <shuah@kernel.org>
+Cc: yhs@fb.com
+Cc: qais.yousef@arm.com
+Cc: Michał Gregorczyk <michalgr@fb.com>
+Cc: Brendan Gregg <bgregg@netflix.com>
+Cc: Olof Johansson <olof@lixom.net>
+Cc: bpf@vger.kernel.org
+Cc: Michal Gregorczyk <michalgr@live.com>
+Cc: Adrian Ratiu <adrian.ratiu@collabora.com>
+Cc: Mohammad Husain <russoue@gmail.com>
+Cc: Qais Yousef <qais.yousef@arm.com>
+Cc: Srinivas Ramana <sramana@codeaurora.org>
+Cc: duyuchao <yuchao.du@unisoc.com>
+Cc: Manjo Raja Rao <linux@manojrajarao.com>
+Cc: Karim Yaghmour <karim.yaghmour@opersys.com>
+Cc: Tamir Carmeli <carmeli.tamir@gmail.com>
+Cc: Yonghong Song <yhs@fb.com>
+Cc: Alexei Starovoitov <ast@kernel.org>
+Cc: Brendan Gregg <brendan.d.gregg@gmail.com>
+Cc: Steven Rostedt <rostedt@goodmis.org>
+Cc: Daniel Borkmann <daniel@iogearbox.net>
+Cc: Masami Hiramatsu <mhiramat@kernel.org>
+
+option-skip-get-maint
+option-no-cover-letter
+option-prefix PATCH v3
