@@ -1,0 +1,52 @@
+These are rough RFC patches for the general idea of in-kernel headers (IKH)
+that I developed this weekend. It is in a POC functional state. Feedback is
+welcomed. I am sending only to very few, since the patches are quite rough
+(although functional). I can post later to LKML after some rounds of
+discussion with you guys.
+
+Potential users:
+- users of systemtap, BCC and other kernel tracing tools
+- builders of kernel modules on device/target
+
+To boot a kernel, all you need to is:
+- boot with 'ikheaders' boot parameter passed to kernel cmdline
+- now the headers will be there in /proc/ikheaders.tbz (tar bzip).
+
+To test, I have provided a POC testmod module in first patch:
+- copy the example testmod module to your target
+- run make, and your module is built. Note that the build happens without any
+  linux-headers package or any need for separate headers. The one in proc is
+  used for the headers.
+
+The current drawback is the kernel binary size increases from 9MB to 16MB with
+x86_64_defconfig build. I can reduce that further but removing files not
+needed. This drawback doesn't affect RAM however, since if the 'ikheaders' boot
+parameter is not passed, then the extra 7MB of the compressed headers are
+thrown out.
+
+Please try it out and let me know what you think, thanks.
+
+I actually thought about doing this last year but then I somehow didn't get
+time and/or thought that upstream would NAK it. Thanks a lot for Karim for
+resurfacing the idea with me at LPC. Hopefully if it makes sense, then it can
+avoid any NAK.
+
+Cc: Manoj Rao <linux@manojrajarao.com>
+Cc: atishp04@gmail.com
+Cc: karim.yaghmour@opersys.com
+---------
+TODO:
+- Make generic and arch-specific dep files specified by an make variable.
+  - variable built by generic and arch specific components.
+  - Some things like tools/objtool are needed only if config option
+    (CONFIG_STACK_VERIFICATION etc.) are enabled so make these a part of the
+    deps file list only in those cases.
+
+- Find a way to build a compressed archive that can appears in debugfs
+
+- Manoj suggested keeping this disabled if kptr restrict is active.
+
+
+option-skip-checkpatch
+option-prefix RFC POC
+option-subject In-kernel headers (IKH) support
