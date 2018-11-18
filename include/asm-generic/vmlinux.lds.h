@@ -810,6 +810,13 @@
 #define INIT_RAM_FS
 #endif
 
+// TODO: Do we need ALIGN? Also do we need ._ikh_size? .S already defines
+// similar var.
+#define IKH_DATA							\
+	__ikheaders_start = .;						\
+	KEEP(*(.ikheaders))						\
+	KEEP(*(.ikheaders.info))
+
 /*
  * Memory encryption operates on a page basis. Since we need to clear
  * the memory encryption mask for this section, it needs to be aligned
@@ -966,6 +973,7 @@
 		INIT_CALLS						\
 		CON_INITCALL						\
 		INIT_RAM_FS						\
+		IKH_DATA						\
 	}
 
 #define BSS_SECTION(sbss_align, bss_align, stop_align)			\

@@ -21,3 +21,7 @@ cp -r testmod /tmp/
 cd /tmp/testmod
 make clean
 make
+
+tar -jcvf /tmp/ttt.tgz /tmp/ttt > /dev/null
+echo "size of compressed kernel artifacts: "
+du -sh /tmp/ttt.tgz

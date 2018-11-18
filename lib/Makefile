@@ -30,6 +30,8 @@ lib-$(CONFIG_PRINTK) += dump_stack.o
 lib-$(CONFIG_MMU) += ioremap.o
 lib-$(CONFIG_SMP) += cpumask.o
 
+obj-y		  += ikheaders/
+
 lib-y	+= kobject.o klist.o
 obj-y	+= lockref.o
 

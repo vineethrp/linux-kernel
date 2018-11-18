@@ -240,6 +240,8 @@ archmacros:
 ASM_MACRO_FLAGS = -Wa,arch/x86/kernel/macros.s
 export ASM_MACRO_FLAGS
 KBUILD_CFLAGS += $(ASM_MACRO_FLAGS)
+IKH_EXTRA += arch/x86/kernel/macros.s
+export IKH_EXTRA
 
 ###
 # Kernel objects
