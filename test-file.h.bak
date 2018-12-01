@@ -1,0 +1,9 @@
+axax
+/* mult
+ * line
+ * comment */
+test
+// Strip this
+1 1 1 z /* comment within */  z
+xxxxxxxxxxxxx // strip now xxxxxxxA
+xaxax

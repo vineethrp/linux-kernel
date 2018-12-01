@@ -7,7 +7,17 @@
 
 rm -rf /tmp/ttt/* && for f in $(cat hplist); do find "$f" ! -name "*.c" ! -name "*.o" ! -name "*.cmd" ! -name ".*"; done | cpio -pd /tmp/ttt/
 
-du -s /tmp/ttt/
+tar -jcvf /tmp/ttt.tgz /tmp/ttt > /dev/null
+echo "size of compressed kernel artifacts without header strip: "
+du -sh /tmp/ttt.tgz
+
+for f in $(find /tmp/ttt -type f); do
+	./replace.pl $f
+done
+
+tar -jcvf /tmp/ttt.tgz /tmp/ttt > /dev/null
+echo "size of compressed kernel artifacts WITH header strip: "
+du -sh /tmp/ttt.tgz
 
 # Also build a test module
 rm -rf /tmp/testmod/
@@ -16,9 +26,3 @@ cp -r testmod /tmp/
 cd /tmp/testmod
 make clean
 make
-
-du -s /tmp/ttt/
-
-tar -jcvf /tmp/ttt.tgz /tmp/ttt > /dev/null
-echo "size of compressed kernel artifacts: "
-du -sh /tmp/ttt.tgz
