@@ -445,13 +445,15 @@ retry_pg:
 }
 
 static void scsi_update_vpd_page(struct scsi_device *sdev, u8 page,
-				 struct scsi_vpd __rcu **sdev_vpd_buf)
+				 struct scsi_vpd **sdev_vpd_buf)
 {
 	struct scsi_vpd *vpd_buf;
 
 	vpd_buf = scsi_get_vpd_buf(sdev, page);
 	if (!vpd_buf)
 		return;
+
+	rcu_assign_pointer(*sdev_vpd_buf, vpd_buf);
 
 	mutex_lock(&sdev->inquiry_mutex);
 	rcu_swap_protected(*sdev_vpd_buf, vpd_buf,
