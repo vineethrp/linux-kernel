@@ -1,0 +1,17 @@
+This is just a resend of the previous series at
+https://lore.kernel.org/patchwork/patch/1014892/
+with a small if block refactor as Andy suggested:
+https://lore.kernel.org/patchwork/comment/1198679/
+
+All,
+Could you please provide your Reviewed-by / Acked-by tags?
+
+I will also resend the manpage changes shortly.
+
+Cc: John Stultz <john.stultz@linaro.org>
+Cc: Andy Lutomirski <luto@kernel.org>
+Cc: linux-api@vger.kernel.org
+Cc: dancol@google.com
+
+option-prefix PATCH v4
+option-subject Add a future write seal to memfd
