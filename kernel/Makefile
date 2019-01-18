@@ -70,6 +70,7 @@ obj-$(CONFIG_UTS_NS) += utsname.o
 obj-$(CONFIG_USER_NS) += user_namespace.o
 obj-$(CONFIG_PID_NS) += pid_namespace.o
 obj-$(CONFIG_IKCONFIG) += configs.o
+obj-$(CONFIG_IKHEADERS_PROC) += kheaders.o
 obj-$(CONFIG_SMP) += stop_machine.o
 obj-$(CONFIG_KPROBES_SANITY_TEST) += test_kprobes.o
 obj-$(CONFIG_AUDIT) += audit.o auditfilter.o
@@ -130,3 +131,38 @@ filechk_ikconfiggz = \
 targets += config_data.h
 $(obj)/config_data.h: $(obj)/config_data.gz FORCE
 	$(call filechk,ikconfiggz)
+
+# Build a list of in-kernel headers for building kernel modules
+ikh_file_list := include/
+ikh_file_list += arch/$(SRCARCH)/Makefile
+ikh_file_list += arch/$(SRCARCH)/include/
+ikh_file_list += arch/$(SRCARCH)/module.lds
+ikh_file_list += arch/$(SRCARCH)/kernel/module.lds
+ikh_file_list += scripts/
+ikh_file_list += Makefile
+
+# Things we need from the $objtree. "OBJDIR" is for the gen_ikh_data.sh
+# script to identify that this comes from the $objtree directory
+ikh_file_list += OBJDIR/scripts/
+ikh_file_list += OBJDIR/include/
+ikh_file_list += OBJDIR/arch/$(SRCARCH)/include/
+ifeq ($(CONFIG_STACK_VALIDATION), y)
+ikh_file_list += OBJDIR/tools/objtool/objtool
+endif
+
+$(obj)/kheaders.o: $(obj)/kheaders_data.h
+
+quiet_cmd_genikh = GEN     $(obj)/kheaders_data.tar.xz
+cmd_genikh = $(srctree)/scripts/gen_ikh_data.sh $@ $(ikh_file_list)
+$(obj)/kheaders_data.tar.xz: FORCE
+	$(call cmd,genikh)
+
+filechk_ikheadersxz = \
+	echo "static const char kernel_headers_data[] __used = KH_MAGIC_START"; \
+	cat $< | scripts/bin2c; \
+	echo "KH_MAGIC_END;"
+
+$(obj)/kheaders_data.h: $(obj)/kheaders_data.tar.xz FORCE
+	$(call filechk,ikheadersxz)
+
+clean-files := kheaders_data.tar.xz kheaders_data.h kheaders.md5

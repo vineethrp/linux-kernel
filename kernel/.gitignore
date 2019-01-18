@@ -3,5 +3,8 @@
 #
 config_data.h
 config_data.gz
+kheaders.md5
+kheaders_data.h
+kheaders_data.tar.xz
 timeconst.h
 hz.bc
