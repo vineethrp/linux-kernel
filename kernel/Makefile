@@ -70,6 +70,7 @@ obj-$(CONFIG_UTS_NS) += utsname.o
 obj-$(CONFIG_USER_NS) += user_namespace.o
 obj-$(CONFIG_PID_NS) += pid_namespace.o
 obj-$(CONFIG_IKCONFIG) += configs.o
+obj-$(CONFIG_IKHEADERS_PROC) += kheaders.o
 obj-$(CONFIG_SMP) += stop_machine.o
 obj-$(CONFIG_KPROBES_SANITY_TEST) += test_kprobes.o
 obj-$(CONFIG_AUDIT) += audit.o auditfilter.o
@@ -130,3 +131,28 @@ filechk_ikconfiggz = \
 targets += config_data.h
 $(obj)/config_data.h: $(obj)/config_data.gz FORCE
 	$(call filechk,ikconfiggz)
+
+# Build a list of in-kernel headers for building kernel modules
+ikh_file_list := include/
+ikh_file_list += arch/$(ARCH)/Makefile
+ikh_file_list += arch/$(ARCH)/include/
+ikh_file_list += scripts/
+ikh_file_list += Makefile
+ifeq ($(CONFIG_STACK_VALIDATION), y)
+ikh_file_list += $(objtree)/tools/objtool/objtool
+endif
+
+$(obj)/kheaders.o: $(obj)/kheaders_data.h
+
+targets += kheaders_data.txz
+
+quiet_cmd_genikh = GEN     $(obj)/kheaders_data.txz
+cmd_genikh = $(srctree)/scripts/gen_ikh_data.sh $@ $^ >/dev/null 2>&1
+$(obj)/kheaders_data.txz: $(ikh_file_list) FORCE
+	$(call cmd,genikh)
+
+filechk_ikheadersxz = (echo "static const char kernel_headers_data[] __used = KH_MAGIC_START"; cat $< | scripts/bin2c; echo "KH_MAGIC_END;")
+
+targets += kheaders_data.h
+$(obj)/kheaders_data.h: $(obj)/kheaders_data.txz FORCE
+	$(call filechk,ikheadersxz)
