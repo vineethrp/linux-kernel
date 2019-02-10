@@ -23,6 +23,31 @@
 #define dprintf(fmt, args...)
 #endif
 
+int read_dmesg(char *str)
+{
+    FILE * fp;
+    char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    fp = fopen("/proc/kmsg", "r");
+    if (fp == NULL)
+        return -1;
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        if (strstr(line, str))
+            continue;
+
+        printf("%s", line);
+    }
+
+    fclose(fp);
+    if (line)
+        free(line);
+
+    return 0;
+}
+
 void print_maps(void)
 {
     FILE *fptr;
@@ -124,6 +149,7 @@ int main() {
     ret = prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, shm, MAP_SIZE, (unsigned long)"test-name");
     printf("prctl ret: %d\n", ret);
 
+    read_dmesg("a");
     while (1);
 
     return 0;
