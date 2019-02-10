@@ -2308,6 +2308,8 @@ out:
 	return error;
 }
 
+#define dpr(fmt, args...)    printk(KERN_ERR "sn: " fmt, ## args)
+
 static int prctl_set_vma_anon_name(unsigned long start, unsigned long end,
 			unsigned long arg)
 {
@@ -2321,44 +2323,89 @@ static int prctl_set_vma_anon_name(unsigned long start, unsigned long end,
 	 * ranges, just ignore them, but return -ENOMEM at the end.
 	 * - this matches the handling in madvise.
 	 */
+	dpr("prctl_set_vma_anon_name: start=0x%lx, end=0x%lx\n",
+	    start, end);
+
 	vma = find_vma_prev(current->mm, start, &prev);
-	if (vma && start > vma->vm_start)
+	dpr("find_vma_prev: vma found, vma->vm_start=%lx vma->vm_end=%lx\n",
+	    vma ? vma->vm_start : 0, vma ? vma->vm_end : 0);
+
+	if (prev) {
+		dpr("find_vma_prev: prev vma also found, prev->vm_start=%lx prev->vm_end=%lx\n",
+		    prev->vm_start, prev->vm_end);
+	}
+
+	if (vma && start > vma->vm_start) {
+		dpr("preloop: start (%lx) > vma->vm_start (%lx) so setting prev to vma\n",
+				start, vma->vm_start);
 		prev = vma;
+	} else {
+		dpr("preloop: prev is currently NULL\n");
+	}
 
 	for (;;) {
 		/* Still start < end. */
 		error = -ENOMEM;
-		if (!vma)
+		if (!vma) {
+			dpr("loop 0: vma is null, return error\n");
 			return error;
+		}
 
 		/* Here start < (end|vma->vm_end). */
 		if (start < vma->vm_start) {
 			unmapped_error = -ENOMEM;
 			start = vma->vm_start;
-			if (start >= end)
+			dpr("loop 1: start < vma->vm_start so setting start = vma->vm_start = %lx\n", start);
+			if (start >= end) {
+				dpr("loop2: return error\n");
 				return error;
+			}
 		}
 
 		/* Here vma->vm_start <= start < (end|vma->vm_end) */
 		tmp = vma->vm_end;
-		if (end < tmp)
+		if (end < tmp) {
 			tmp = end;
+			dpr("loop3: end (%lx) <  vma->vm_end (%lx) so setting tmp = end (%lx)\n",
+			    end, vma->vm_end, tmp);
+		} else {
+			dpr("loop4: end (%lx) >= vma->vm_end (%lx) so setting tmp = vma->vm_end (%lx)\n",
+			    end, vma->vm_end, vma->vm_end);
+		}
+
+		dpr("loop5: Finally call prctl_update_vma_anon_name with s/e:(%lx, %lx) vma->s/e: (%lx, %lx)\n",
+				start, tmp, vma->vm_start, vma->vm_end);
 
 		/* Here vma->vm_start <= start < tmp <= (end|vma->vm_end). */
 		error = prctl_update_vma_anon_name(vma, &prev, start, tmp,
 				(const char __user *)arg);
 		if (error)
 			return error;
+
+		if (prev)
+			dpr("loop6 (after prctl_update_vma_anon_name return): prev->vm_start=%lx prev->vm_end=%lx\n",
+			    prev->vm_start, prev->vm_end);
+
 		start = tmp;
-		if (prev && start < prev->vm_end)
+		dpr("loop7: start set to %lx\n", start);
+
+		if (prev && start < prev->vm_end) {
+			dpr("loop8: start(%lx) < prev->vm_end(%lx) so start = prev->vm_end(%lx)\n", start,
+			    prev->vm_end, prev->vm_end);
 			start = prev->vm_end;
+		}
 		error = unmapped_error;
 		if (start >= end)
 			return error;
-		if (prev)
+		if (prev) {
 			vma = prev->vm_next;
-		else	/* madvise_remove dropped mmap_sem */
+			dpr("loop9: new vma set to prev->vm_next == ->start=%lx  ->end=%lx\n",
+					vma ? vma->vm_start : 0, vma ? vma->vm_end : 0);
+		} else	/* madvise_remove dropped mmap_sem */ {
 			vma = find_vma(current->mm, start);
+			dpr("loop10: new vma set to find_vma(start): vma found, vma->vm_start=%lx vma->vm_end=%lx\n",
+					vma ? vma->vm_start : 0, vma ? vma->vm_end : 0);
+		}
 	}
 }
 
@@ -2389,6 +2436,7 @@ static int prctl_set_vma(unsigned long opt, unsigned long start,
 
 	switch (opt) {
 	case PR_SET_VMA_ANON_NAME:
+		pr_err("sn: prctl called\n");
 		error = prctl_set_vma_anon_name(start, end, arg);
 		break;
 	default:

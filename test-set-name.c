@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include <time.h>
 #include <errno.h>
 
@@ -35,7 +36,7 @@ int read_dmesg(char *str)
         return -1;
 
     while ((read = getline(&line, &len, fp)) != -1) {
-        if (strstr(line, str))
+        if (strstr(line, str) == NULL)
             continue;
 
         printf("%s", line);
@@ -149,7 +150,7 @@ int main() {
     ret = prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, shm, MAP_SIZE, (unsigned long)"test-name");
     printf("prctl ret: %d\n", ret);
 
-    read_dmesg("a");
+    read_dmesg("sn:");
     while (1);
 
     return 0;
