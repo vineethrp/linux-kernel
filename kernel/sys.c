@@ -124,6 +124,8 @@
 # define SVE_GET_VL()		(-EINVAL)
 #endif
 
+#define dpr(fmt, args...)    printk(KERN_ERR "sn: " fmt, ## args)
+
 /*
  * this is where the system-wide overflow UID and GID are defined, for
  * architectures that now have 32-bit UID/GID but didn't in the past
@@ -2269,6 +2271,7 @@ static int prctl_update_vma_anon_name(struct vm_area_struct *vma,
 	struct mm_struct *mm = vma->vm_mm;
 	int error = 0;
 	pgoff_t pgoff;
+	struct vm_area_struct *ptmp = *prev;
 
 	if (name_addr == vma_get_anon_name(vma)) {
 		*prev = vma;
@@ -2276,9 +2279,14 @@ static int prctl_update_vma_anon_name(struct vm_area_struct *vma,
 	}
 
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
+
+	dpr("puvan prev before: prev->vm_start(%lx) < prev->vm_end(%lx)\n",
+	    ptmp->vm_start, ptmp->vm_end);
 	*prev = vma_merge(mm, *prev, start, end, vma->vm_flags, vma->anon_vma,
 				vma->vm_file, pgoff, vma_policy(vma),
 				vma->vm_userfaultfd_ctx, name_addr);
+	dpr("puvan prev after: prev->vm_start(%lx) < prev->vm_end(%lx)\n",
+	    ptmp->vm_start, ptmp->vm_end);
 	if (*prev) {
 		vma = *prev;
 		goto success;
@@ -2286,11 +2294,17 @@ static int prctl_update_vma_anon_name(struct vm_area_struct *vma,
 
 	*prev = vma;
 
+	dpr("puvan prev after2 : prev->vm_start(%lx) < prev->vm_end(%lx)\n",
+	    ptmp->vm_start, ptmp->vm_end);
+
 	if (start != vma->vm_start) {
 		error = split_vma(mm, vma, start, 1);
 		if (error)
 			goto out;
 	}
+
+	dpr("puvan prev after3 : prev->vm_start(%lx) < prev->vm_end(%lx)\n",
+	    ptmp->vm_start, ptmp->vm_end);
 
 	if (end != vma->vm_end) {
 		error = split_vma(mm, vma, end, 0);
@@ -2307,8 +2321,6 @@ out:
 		error = -EAGAIN;
 	return error;
 }
-
-#define dpr(fmt, args...)    printk(KERN_ERR "sn: " fmt, ## args)
 
 static int prctl_set_vma_anon_name(unsigned long start, unsigned long end,
 			unsigned long arg)
@@ -2336,11 +2348,9 @@ static int prctl_set_vma_anon_name(unsigned long start, unsigned long end,
 	}
 
 	if (vma && start > vma->vm_start) {
-		dpr("preloop: start (%lx) > vma->vm_start (%lx) so setting prev to vma\n",
+		dpr("preloop (prev changed): start (%lx) > vma->vm_start (%lx) so setting prev to vma\n",
 				start, vma->vm_start);
 		prev = vma;
-	} else {
-		dpr("preloop: prev is currently NULL\n");
 	}
 
 	for (;;) {
@@ -2416,18 +2426,23 @@ static int prctl_set_vma(unsigned long opt, unsigned long start,
 	int error;
 	unsigned long len;
 	unsigned long end;
+	pr_err("prctl_set_vma main func enter\n");
 
 	if (start & ~PAGE_MASK)
 		return -EINVAL;
 	len = (len_in + ~PAGE_MASK) & PAGE_MASK;
 
 	/* Check to see whether len was rounded up from small -ve to zero */
-	if (len_in && !len)
+	if (len_in && !len) {
+		pr_err("e1\n");
 		return -EINVAL;
+	}
 
 	end = start + len;
-	if (end < start)
+	if (end < start) {
+		pr_err("e2\n");
 		return -EINVAL;
+	}
 
 	if (end == start)
 		return 0;
