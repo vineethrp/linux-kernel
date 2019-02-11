@@ -2,6 +2,7 @@
 #include <sys/mman.h>
 #include <sys/prctl.h>
 
+#include <error.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -36,6 +37,9 @@ int read_dmesg(char *str)
         return -1;
 
     while ((read = getline(&line, &len, fp)) != -1) {
+
+//       printf("searching for %s in %s\n", str, line);
+
         if (strstr(line, str) == NULL)
             continue;
 
@@ -146,12 +150,36 @@ int main() {
     shm3  = create_map();
 
     print_maps();
+    printf("about to write to first map fully..\n");
+    fflush(stdout);
 
+    sleep(1);
+    /* Test fully subsuming of first map */
     ret = prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, shm, MAP_SIZE, (unsigned long)"test-name");
     printf("prctl ret: %d\n", ret);
+    printf("about to write to set second map half\n");
+    fflush(stdout);
 
-    read_dmesg("sn:");
-    while (1);
+    sleep(1);
+
+//    printf("shm1=%lx (MAP_SIZE/2)=%lx shm1 + (MAP_SIZE/2) = %lx\n", (unsigned long)shm1,
+//            (unsigned long)(MAP_SIZE/2), (unsigned long)(shm1 + (MAP_SIZE/2)));
+
+    /* Test partially subsuming of second map (from middle till end) */
+    char *addr2;
+    int size2;
+    addr2 = shm1 + (MAP_SIZE/2);
+    // Align to page boundary for prctl to work
+    addr2 = (char *)((unsigned long)addr2 & (unsigned long)(~4095));
+    size2 = (shm1 + MAP_SIZE) - addr2;
+    printf("shm1=%p addr2=%p\n", shm1, addr2);
+
+    ret = prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, addr2, size2, (unsigned long)"test-namee");
+    printf("prctl ret: %d errno: %d\n", ret, errno);
+    print_maps();
+
+    // read_dmesg("sn:");
+    // while (1);
 
     return 0;
 }
