@@ -1,0 +1,16 @@
+These patches fix various sparse errors found as a result of the recent check
+to add rcu_check_sparse() to rcu_assign_pointer().  The errors in some cases
+seem to either missing API usage, or missing annotations. The annotations added
+in the series can also help avoid future incorrect usages and bugs so it is a
+good idea to do in any case.
+
+RFC v1 -> Patch v2:
+Made changes to various scheduler patches (Peter Zijlstra)
+
+Cc: kernel-team@android.com
+Cc: rcu@vger.kernel.org
+Cc: paulmck@linux.ibm.com
+Cc: keescook@chromium.org
+Cc: kernel-hardening@lists.openwall.com
+option-subject RCU fixes for rcu_assign_pointer() usage
+option-prefix PATCH v2
