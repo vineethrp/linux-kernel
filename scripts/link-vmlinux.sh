@@ -217,6 +217,9 @@ fi;
 # final build of init/
 ${MAKE} -f "${srctree}/scripts/Makefile.build" obj=init
 
+# final build of kernel/
+${MAKE} -f "${srctree}/scripts/Makefile.build" obj=kernel
+
 archive_builtin
 
 #link vmlinux.o
