@@ -134,6 +134,7 @@ $(obj)/config_data.h: $(obj)/config_data.gz FORCE
 
 # Build a list of in-kernel headers for building kernel modules
 ikh_file_list := include/
+ikh_file_list := include/generated/compile.h
 ikh_file_list += arch/$(ARCH)/Makefile
 ikh_file_list += arch/$(ARCH)/include/
 ikh_file_list += scripts/
