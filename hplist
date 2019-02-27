@@ -3,12 +3,4 @@ arch/x86/include/
 tools/objtool/objtool
 include/
 Makefile
-Module.symvers
-arch/x86/kernel/macros.s
-scripts/mod/
-scripts/Makefile*
-scripts/Kbuild*
-scripts/subarch*
-scripts/gcc*
-scripts/basic/fixdep
-scripts/*lds
+scripts/

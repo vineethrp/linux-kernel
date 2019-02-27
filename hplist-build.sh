@@ -7,6 +7,16 @@
 
 rm -rf /tmp/ttt/* && for f in $(cat hplist); do find "$f" ! -name "*.c" ! -name "*.o" ! -name "*.cmd" ! -name ".*"; done | cpio -pd /tmp/ttt/
 
+# Copy build artifacts common between intree and out of tree
+# The out directory should be called hoge
+if [ -d hoge ]; then
+pushd hoge
+for f in $(cat ../hplist-out-of-tree); do find "$f" ! -name "*.c" ! -name "*.o" ! -name "*.cmd" ! -name ".*"; done | cpio -pd /tmp/ttt/ >/dev/null 2>&1
+popd
+else
+for f in $(cat hplist-out-of-tree); do find "$f" ! -name "*.c" ! -name "*.o" ! -name "*.cmd" ! -name ".*"; done | cpio -pd /tmp/ttt/ >/dev/null 2>&1
+fi
+
 tar -Jcvf /tmp/ttt.tgz /tmp/ttt > /dev/null
 echo "size of compressed kernel artifacts without header strip: "
 du -sh /tmp/ttt.tgz

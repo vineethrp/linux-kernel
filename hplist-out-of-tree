@@ -1,0 +1,4 @@
+scripts/
+include/
+arch/x86/include/generated/
+arch/x86/kernel/macros.s
