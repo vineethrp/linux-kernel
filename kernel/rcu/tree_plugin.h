@@ -902,18 +902,19 @@ static void rcu_preempt_check_blocked_tasks(struct rcu_node *rnp)
 }
 
 /*
- * Check to see if this CPU is in a non-context-switch quiescent state,
- * namely user mode and idle loop.
+ * Check to see if this CPU is not in user mode, idle loop, or a
+ * kernel section that has preemption or softirqs disabled.
  */
 static void rcu_flavor_sched_clock_irq(int user)
 {
-	if (user || rcu_is_cpu_rrupt_from_idle()) {
+	if (user || rcu_is_cpu_rrupt_from_idle() ||
+	    !(preempt_count() & (PREEMPT_MASK | SOFTIRQ_MASK))) {
 
 		/*
 		 * Get here if this CPU took its interrupt from user
-		 * mode or from the idle loop, and if this is not a
-		 * nested interrupt.  In this case, the CPU is in
-		 * a quiescent state, so note it.
+		 * mode or from the idle loop, or in a kernel section
+		 * that has preemption or softirqs disabled. In this
+		 * case, the CPU is in a quiescent state, so note it.
 		 *
 		 * No memory barrier is required here because rcu_qs()
 		 * references only CPU-local variables that other CPUs
