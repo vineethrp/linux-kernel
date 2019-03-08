@@ -1387,7 +1387,7 @@ rcu_torture_stats_print(void)
 	    n_rcu_torture_boost_rterror != 0 ||
 	    n_rcu_torture_boost_failure != 0 ||
 	    i > 1) {
-		pr_cont("%s", "!!! ");
+		pr_cont("%s i=%d", "!!! ", i);
 		atomic_inc(&n_rcu_torture_error);
 		WARN_ON_ONCE(1);
 	}
@@ -1456,6 +1456,12 @@ rcu_torture_stats(void *arg)
 static void
 rcu_torture_print_module_parms(struct rcu_torture_ops *cur_ops, const char *tag)
 {
+	pr_alert("%s" TORTURE_FLAG
+		" torture fail %d %d\n",
+			torture_type,
+			atomic_read(&n_rcu_torture_error),
+			n_rcu_torture_barrier_error);
+
 	pr_alert("%s" TORTURE_FLAG
 		 "--- %s: nreaders=%d nfakewriters=%d "
 		 "stat_interval=%d verbose=%d test_no_idle_hz=%d "
