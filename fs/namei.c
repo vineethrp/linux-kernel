@@ -769,6 +769,35 @@ static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
 		return 1;
 }
 
+// static void trace_success_walk
+
+static int success_walk(struct nameidata *nd)
+{
+	struct path *pt = &nd->path;
+	struct inode *i = nd->inode;
+	char buf[200];
+	int n = 200;
+	char *p;
+
+	p = d_path(pt, buf, n);
+
+	if (!IS_ERR(p)) {
+		char *end = mangle_path(buf, p, "\n");
+		if (end) {
+			buf[end - buf] = 0;
+		} else {
+			buf[n-1] = 0;
+		}
+	} else {
+		buf[0] = 0;
+	}
+
+	buf[30] = 0;
+
+	trace_printk("file: %s inode: %d\n", buf, i->i_ino);
+	return 0;
+}
+
 /**
  * complete_walk - successful completion of path walk
  * @nd:  pointer nameidata
@@ -792,14 +821,14 @@ static int complete_walk(struct nameidata *nd)
 	}
 
 	if (likely(!(nd->flags & LOOKUP_JUMPED)))
-		return 0;
+		return success_walk(nd);
 
 	if (likely(!(dentry->d_flags & DCACHE_OP_WEAK_REVALIDATE)))
-		return 0;
+		return success_walk(nd);
 
 	status = dentry->d_op->d_weak_revalidate(dentry, nd->flags);
 	if (status > 0)
-		return 0;
+		return success_walk(nd);
 
 	if (!status)
 		status = -ESTALE;
