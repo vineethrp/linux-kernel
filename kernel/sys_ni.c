@@ -450,3 +450,6 @@ COND_SYSCALL(setuid16);
 
 /* restartable sequence */
 COND_SYSCALL(rseq);
+
+/* pidfd */
+COND_SYSCALL(pidfd_wait);

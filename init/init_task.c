@@ -19,6 +19,7 @@ static struct signal_struct init_signals = {
 	.nr_threads	= 1,
 	.thread_head	= LIST_HEAD_INIT(init_task.thread_node),
 	.wait_chldexit	= __WAIT_QUEUE_HEAD_INITIALIZER(init_signals.wait_chldexit),
+	.wait_pidfd	= __WAIT_QUEUE_HEAD_INITIALIZER(init_signals.wait_pidfd),
 	.shared_pending	= {
 		.list = LIST_HEAD_INIT(init_signals.shared_pending.list),
 		.signal =  {{0}}
