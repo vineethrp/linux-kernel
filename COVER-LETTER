@@ -1,0 +1,17 @@
+-------
+Note that poll on a new syscal is better than ioctl because you can parallely block.
+
+TODO:
+- kselftests
+- test for resource leaks, stress test
+- add warnings like Andy did
+- move pidfd_send_signal to pidfd.c
+- can execve cause exits on the main thread? - Daniel provided some information
+  on the case.
+- a pid can point to multiple task_struct, how does this work?
+- EXIT_TRACE code needs special handling?
+- don't hold onto task_struct, takes memory
+- make what to block on as a separate pidfd_wait param.
+- task can be converted to pid using task->thread_pid.
+
+Cc: Jonathan Kowalski <bl0pbl33p@gmail.com>
