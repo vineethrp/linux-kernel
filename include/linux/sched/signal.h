@@ -90,6 +90,7 @@ struct signal_struct {
 
 	wait_queue_head_t	wait_chldexit;	/* for wait4() */
 	wait_queue_head_t	wait_pidfd;	/* For pidfd_wait() */
+	struct kernel_siginfo	exit_siginfo;
 
 	/* current thread group signal load-balancing target: */
 	struct task_struct	*curr_target;
