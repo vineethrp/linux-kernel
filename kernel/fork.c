@@ -707,18 +707,11 @@ static inline void free_signal_struct(struct signal_struct *sig)
 	kmem_cache_free(signal_cachep, sig);
 }
 
-inline void get_signal_struct(struct signal_struct *sig)
-{
-	refcount_inc(&sig->sigcnt);
-}
-EXPORT_SYMBOL_GPL(get_signal_struct);
-
-inline void put_signal_struct(struct signal_struct *sig)
+static inline void put_signal_struct(struct signal_struct *sig)
 {
 	if (refcount_dec_and_test(&sig->sigcnt))
 		free_signal_struct(sig);
 }
-EXPORT_SYMBOL_GPL(put_signal_struct);
 
 void __put_task_struct(struct task_struct *tsk)
 {
@@ -2088,7 +2081,7 @@ static __latent_entropy struct task_struct *copy_process(
 		} else {
 			current->signal->nr_threads++;
 			atomic_inc(&current->signal->live);
-			get_signal_struct(&current->signal);
+			refcount_inc(&current->signal->sigcnt);
 			task_join_group_stop(p);
 			list_add_tail_rcu(&p->thread_group,
 					  &p->group_leader->thread_group);
