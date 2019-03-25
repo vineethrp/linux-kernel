@@ -1804,10 +1804,11 @@ ret:
  * Prepare a kernel_siginfo structure with the information
  * about process exit.
  */
-void prepare_exit_siginfo(struct task_struct *tsk, int sig,
-			  struct kernel_siginfo *info)
+struct kernel_siginfo *prepare_exit_siginfo(struct task_struct *tsk, int sig)
 {
 	u64 utime, stime;
+	unsigned long flags;
+	struct kernel_siginfo *info;
 
 	BUG_ON(sig == -1);
 
@@ -1816,6 +1817,9 @@ void prepare_exit_siginfo(struct task_struct *tsk, int sig,
 
 	BUG_ON(!tsk->ptrace &&
 	       (tsk->group_leader != tsk || !thread_group_empty(tsk)));
+
+	spin_lock_irqsave(&tsk->sighand->siglock, flags);
+	info = &tsk->signal->exit_siginfo;
 
 	if (sig != SIGCHLD) {
 		/*
@@ -1859,6 +1863,9 @@ void prepare_exit_siginfo(struct task_struct *tsk, int sig,
 		info->si_code = CLD_EXITED;
 		info->si_status = tsk->exit_code >> 8;
 	}
+	spin_unlock_irqrestore(&tsk->sighand->siglock, flags);
+
+	return info;
 }
 
 /*
@@ -1870,12 +1877,12 @@ void prepare_exit_siginfo(struct task_struct *tsk, int sig,
  */
 bool do_notify_parent(struct task_struct *tsk, int sig)
 {
-	struct kernel_siginfo info;
+	struct kernel_siginfo *info;
 	unsigned long flags;
 	struct sighand_struct *psig;
 	bool autoreap = false;
 
-	prepare_exit_siginfo(tsk, sig, &info);
+	info = prepare_exit_siginfo(tsk, sig);
 
 	psig = tsk->parent->sighand;
 	spin_lock_irqsave(&psig->siglock, flags);
@@ -1902,7 +1909,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 			sig = 0;
 	}
 	if (valid_signal(sig) && sig)
-		__group_send_sig_info(sig, &info, tsk->parent);
+		__group_send_sig_info(sig, info, tsk->parent);
 	__wake_up_parent(tsk, tsk->parent);
 	spin_unlock_irqrestore(&psig->siglock, flags);
 
