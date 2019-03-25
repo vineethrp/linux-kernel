@@ -1801,18 +1801,12 @@ ret:
 }
 
 /*
- * Let a parent know about the death of a child.
- * For a stopped/continued status change, use do_notify_parent_cldstop instead.
- *
- * Returns true if our parent ignored us and so we've switched to
- * self-reaping.
+ * Prepare a kernel_siginfo structure with the information
+ * about process exit.
  */
-bool do_notify_parent(struct task_struct *tsk, int sig)
+void prepare_exit_siginfo(struct task_struct *tsk, int sig,
+			  struct kernel_siginfo *info)
 {
-	struct kernel_siginfo info;
-	unsigned long flags;
-	struct sighand_struct *psig;
-	bool autoreap = false;
 	u64 utime, stime;
 
 	BUG_ON(sig == -1);
@@ -1832,9 +1826,9 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 			sig = SIGCHLD;
 	}
 
-	clear_siginfo(&info);
-	info.si_signo = sig;
-	info.si_errno = 0;
+	clear_siginfo(info);
+	info->si_signo = sig;
+	info->si_errno = 0;
 	/*
 	 * We are under tasklist_lock here so our parent is tied to
 	 * us and cannot change.
@@ -1847,24 +1841,41 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	 * correct to rely on this
 	 */
 	rcu_read_lock();
-	info.si_pid = task_pid_nr_ns(tsk, task_active_pid_ns(tsk->parent));
-	info.si_uid = from_kuid_munged(task_cred_xxx(tsk->parent, user_ns),
-				       task_uid(tsk));
+	info->si_pid = task_pid_nr_ns(tsk, task_active_pid_ns(tsk->parent));
+	info->si_uid = from_kuid_munged(task_cred_xxx(tsk->parent, user_ns),
+					task_uid(tsk));
 	rcu_read_unlock();
 
 	task_cputime(tsk, &utime, &stime);
-	info.si_utime = nsec_to_clock_t(utime + tsk->signal->utime);
-	info.si_stime = nsec_to_clock_t(stime + tsk->signal->stime);
+	info->si_utime = nsec_to_clock_t(utime + tsk->signal->utime);
+	info->si_stime = nsec_to_clock_t(stime + tsk->signal->stime);
 
-	info.si_status = tsk->exit_code & 0x7f;
+	info->si_status = tsk->exit_code & 0x7f;
 	if (tsk->exit_code & 0x80)
-		info.si_code = CLD_DUMPED;
+		info->si_code = CLD_DUMPED;
 	else if (tsk->exit_code & 0x7f)
-		info.si_code = CLD_KILLED;
+		info->si_code = CLD_KILLED;
 	else {
-		info.si_code = CLD_EXITED;
-		info.si_status = tsk->exit_code >> 8;
+		info->si_code = CLD_EXITED;
+		info->si_status = tsk->exit_code >> 8;
 	}
+}
+
+/*
+ * Let a parent know about the death of a child.
+ * For a stopped/continued status change, use do_notify_parent_cldstop instead.
+ *
+ * Returns true if our parent ignored us and so we've switched to
+ * self-reaping.
+ */
+bool do_notify_parent(struct task_struct *tsk, int sig)
+{
+	struct kernel_siginfo info;
+	unsigned long flags;
+	struct sighand_struct *psig;
+	bool autoreap = false;
+
+	prepare_exit_siginfo(tsk, sig, &info);
 
 	psig = tsk->parent->sighand;
 	spin_lock_irqsave(&psig->siglock, flags);
