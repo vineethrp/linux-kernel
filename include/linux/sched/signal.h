@@ -235,6 +235,9 @@ struct signal_struct {
 					 * (notably. ptrace) */
 } __randomize_layout;
 
+void get_signal_struct(struct signal_struct *sig);
+void put_signal_struct(struct signal_struct *sig);
+
 /*
  * Bits in flags field of signal_struct.
  */
