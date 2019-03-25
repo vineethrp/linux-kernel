@@ -31,6 +31,9 @@ struct pidfd_wait_priv {
 /*
  * Set the task's exit_state to state only if it is in a ZOMBIE state.
  * Return true if the exit_state could be set, otherwise false.
+ *
+ * Also note that do_notify_parent() is always called before
+ * this is called.
  */
 bool task_set_exit_state_if_zombie(struct task_struct *task, int state)
 {
@@ -45,6 +48,11 @@ bool task_set_exit_state_if_zombie(struct task_struct *task, int state)
 	return true;
 }
 
+/* 
+ * Set the task's exit state
+ * Also note that do_notify_parent() is always called before
+ * this is called.
+ */
 void task_set_exit_state(struct task_struct *task, int state)
 {
 	pidfd_wait_lock(task);
@@ -54,7 +62,10 @@ void task_set_exit_state(struct task_struct *task, int state)
 	return;
 }
 
-/* Will block if task hasn't exited/reaped */
+/*
+ * Will block if task state hasn't been set to exited/reaped
+ * TODO: What about EXIT_TRACE ?
+ */
 static int pidfd_read_exit_status(struct task_struct *task)
 {
 	int ret;
@@ -94,18 +105,32 @@ static __poll_t pidfd_wait_poll(struct file *file, struct poll_table_struct *pts
 
 static ssize_t pidfd_wait_read_iter(struct kiocb *iocb, struct iov_iter *to)
 {
-	char buf[100];
+	void *buf;
 	struct file *file = iocb->ki_filp;
 	struct pidfd_wait_priv *priv = file->private_data;
-	struct pid *pid = priv->pid;
 	struct task_struct *task = priv->task;
-	int ret;
+	ssize_t ret, size_ret;
 
 	ret = pidfd_read_exit_status(task);
 
-	sprintf(buf, "status[pid:%d exit_state=%d]", pid_nr(pid), ret);
+	/*
+	 * Debugging, remove later.
+	 * sprintf(buf, "status[pid:%d exit_state=%d]", pid_nr(pid), ret);
+	 * trace_printk("Returning exit_state %s\n", buf);
+	 */
 
-	return copy_to_iter(buf, strlen(buf)+1, to);
+	size_ret = sizeof(task->exit_state) + sizeof(siginfo_t);
+	buf = kmalloc(size_ret, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	memcpy(buf, &task->exit_state, sizeof(task->exit_state));
+	memcpy(buf + sizeof(task->exit_state), &task->signal->exit_siginfo,
+	       sizeof(task->signal->exit_siginfo));
+
+	ret = copy_to_iter(buf, size_ret, to);
+	kfree(buf);
+	return ret;
 }
 
 static int pidfd_wait_release(struct inode *inode, struct file *file)
