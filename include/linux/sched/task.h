@@ -152,4 +152,7 @@ static inline void task_unlock(struct task_struct *p)
 	spin_unlock(&p->alloc_lock);
 }
 
+void task_set_exit_state(struct task_struct *, int);
+bool task_set_exit_state_if_zombie(struct task_struct *, int);
+
 #endif /* _LINUX_SCHED_TASK_H */

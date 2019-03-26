@@ -214,8 +214,9 @@ repeat:
 		 * then we are the one who should release the leader.
 		 */
 		zap_leader = do_notify_parent(leader, leader->exit_signal);
-		if (zap_leader)
-			leader->exit_state = EXIT_DEAD;
+		if (zap_leader) {
+			task_set_exit_state(leader, EXIT_DEAD);
+		}
 	}
 
 	write_unlock_irq(&tasklist_lock);
@@ -651,7 +652,8 @@ static void reparent_leader(struct task_struct *father, struct task_struct *p,
 	if (!p->ptrace &&
 	    p->exit_state == EXIT_ZOMBIE && thread_group_empty(p)) {
 		if (do_notify_parent(p, p->exit_signal)) {
-			p->exit_state = EXIT_DEAD;
+			task_set_exit_state(p, EXIT_DEAD);
+
 			list_add(&p->ptrace_entry, dead);
 		}
 	}
@@ -731,7 +733,7 @@ static void exit_notify(struct task_struct *tsk, int group_dead)
 		autoreap = true;
 	}
 
-	tsk->exit_state = autoreap ? EXIT_DEAD : EXIT_ZOMBIE;
+	task_set_exit_state(tsk, autoreap ? EXIT_DEAD : EXIT_ZOMBIE);
 	if (tsk->exit_state == EXIT_DEAD)
 		list_add(&tsk->ptrace_entry, &dead);
 
@@ -1076,7 +1078,8 @@ static int wait_task_zombie(struct wait_opts *wo, struct task_struct *p)
 	 */
 	state = (ptrace_reparented(p) && thread_group_leader(p)) ?
 		EXIT_TRACE : EXIT_DEAD;
-	if (cmpxchg(&p->exit_state, EXIT_ZOMBIE, state) != EXIT_ZOMBIE)
+
+	if (!task_set_exit_state_if_zombie(p, state))
 		return 0;
 	/*
 	 * We own this thread, nobody else can reap it.
@@ -1157,7 +1160,8 @@ static int wait_task_zombie(struct wait_opts *wo, struct task_struct *p)
 		state = EXIT_ZOMBIE;
 		if (do_notify_parent(p, p->exit_signal))
 			state = EXIT_DEAD;
-		p->exit_state = state;
+		task_set_exit_state(p, state);
+
 		write_unlock_irq(&tasklist_lock);
 	}
 	if (state == EXIT_DEAD)

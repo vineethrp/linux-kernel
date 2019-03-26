@@ -742,8 +742,10 @@ __SYSCALL(__NR_rseq, sys_rseq)
 __SYSCALL(__NR_kexec_file_load,     sys_kexec_file_load)
 #define __NR_pidfd_send_signal 424
 __SYSCALL(__NR_pidfd_send_signal, sys_pidfd_send_signal)
+#define __NR_pidfd_wait 428
+__SYSCALL(__NR_pidfd_wait, sys_pidfd_wait)
 #undef __NR_syscalls
-#define __NR_syscalls 425
+#define __NR_syscalls 429
 
 /*
  * 32 bit systems traditionally used different
