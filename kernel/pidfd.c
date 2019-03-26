@@ -120,13 +120,12 @@ static ssize_t pidfd_wait_read_iter(struct kiocb *iocb, struct iov_iter *to)
 	 * trace_printk("Returning exit_state %s\n", buf);
 	 */
 
-	size_ret = sizeof(task->exit_state) + sizeof(siginfo_t);
+	size_ret = sizeof(siginfo_t);
 	buf = kmalloc(size_ret, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
 
-	memcpy(buf, &task->exit_state, sizeof(task->exit_state));
-	memcpy(buf + sizeof(task->exit_state), &task->signal->exit_siginfo,
+	memcpy(buf, &task->signal->exit_siginfo,
 	       sizeof(task->signal->exit_siginfo));
 
 	ret = copy_to_iter(buf, size_ret, to);
