@@ -57,7 +57,7 @@ main (int argc, char *argv[])
         printf("PARENT: child pid fd %d\n\n", pidfd);
         fflush(stdout);
 
-        wfd = syscall(__NR_pidfd_wait, pidfd);
+        wfd = syscall(__NR_pidfd_wait, pidfd, 0);
         printf("PARENT: child's wfd %d\n\n", wfd);
         fflush(stdout);
 
