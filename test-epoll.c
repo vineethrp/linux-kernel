@@ -15,9 +15,8 @@
 
 void print_exit(int wfd, void *buf)
 {
-    siginfo_t *si = (siginfo_t *)((char *)buf + sizeof(int));
+    siginfo_t *si = (siginfo_t *)((char *)buf);
 
-    printf("PARENT: read returned, buf on fd %d: exit_state=%d\n\n", wfd, *(int *)buf);
     printf("PARENT: read returned, buf on fd %d: si_signo=%d\n\n", wfd, si->si_signo);
     printf("PARENT: read returned, buf on fd %d: si_code=%d\n\n", wfd,  si->si_code);
     printf("PARENT: read returned, buf on fd %d: si_errno=%d\n\n", wfd, si->si_errno);
@@ -31,7 +30,6 @@ main (int argc, char *argv[])
     struct epoll_event event, event2;
     struct epoll_event *events;
     int pfds[2];
-    char buf[30];
     int cpid, wfd;
     char path[100];
 
