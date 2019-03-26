@@ -23,6 +23,7 @@
 struct pidfd_wait_priv {
 	struct pid *pid;
 	struct task_struct *task;
+	int block_until;
 };
 
 #define pidfd_wait_lock(task)   spin_lock(&task->signal->wait_pidfd.lock)
@@ -66,7 +67,7 @@ void task_set_exit_state(struct task_struct *task, int state)
  * Will block if task state hasn't been set to exited/reaped
  * TODO: What about EXIT_TRACE ?
  */
-static int pidfd_read_exit_status(struct task_struct *task)
+static int pidfd_read_exit_status(struct task_struct *task, int block_until)
 {
 	int ret;
 
@@ -77,7 +78,7 @@ static int pidfd_read_exit_status(struct task_struct *task)
 	}
 
 	ret = wait_event_interruptible_locked(task->signal->wait_pidfd,
-					      (task->exit_state != 0));
+					      (task->exit_state == block_until));
 	if (!ret)
 		ret = task->exit_state;
 	/*
@@ -96,7 +97,7 @@ static __poll_t pidfd_wait_poll(struct file *file, struct poll_table_struct *pts
 	struct task_struct *task = priv->task;
 	int ret, poll_flags = (POLLIN | POLLRDNORM);
 
-	ret = pidfd_read_exit_status(task);
+	ret = pidfd_read_exit_status(task, priv->block_until);
 	if (ret < 0)
 		poll_flags |= POLLERR;
 
@@ -111,7 +112,7 @@ static ssize_t pidfd_wait_read_iter(struct kiocb *iocb, struct iov_iter *to)
 	struct task_struct *task = priv->task;
 	ssize_t ret, size_ret;
 
-	ret = pidfd_read_exit_status(task);
+	ret = pidfd_read_exit_status(task, priv->block_until);
 
 	/*
 	 * Debugging, remove later.
@@ -151,7 +152,7 @@ static const struct file_operations pidfd_wait_file_ops = {
 	.release	= pidfd_wait_release,
 };
 
-SYSCALL_DEFINE1(pidfd_wait, int, pidfd)
+SYSCALL_DEFINE2(pidfd_wait, int, pidfd, int, block_until)
 {
 	struct fd f;
 	struct pid *pid;
@@ -180,6 +181,10 @@ SYSCALL_DEFINE1(pidfd_wait, int, pidfd)
 	priv->pid = get_pid(pid);
 	priv->task = get_pid_task(pid, PIDTYPE_PID);
 	read_unlock(&tasklist_lock);
+
+	if (block_until == 0)
+		block_until = EXIT_DEAD;
+	priv->block_until = block_until;
 
 	if (IS_ERR_OR_NULL(priv->task)) {
 		ret = -ESRCH;
