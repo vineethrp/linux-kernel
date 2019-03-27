@@ -13,6 +13,10 @@
 
 #define MAXEVENTS 64
 
+// Needs to be made UAPI.
+#define EXIT_DEAD   16
+#define EXIT_ZOMBIE 32
+
 void print_exit(int wfd, void *buf)
 {
     siginfo_t *si = (siginfo_t *)((char *)buf);
@@ -55,7 +59,7 @@ main (int argc, char *argv[])
         printf("PARENT: child pid fd %d\n\n", pidfd);
         fflush(stdout);
 
-        wfd = syscall(__NR_pidfd_wait, pidfd, 0);
+        wfd = syscall(__NR_pidfd_wait, pidfd, EXIT_ZOMBIE);
         printf("PARENT: child's wfd %d\n\n", wfd);
         fflush(stdout);
 
