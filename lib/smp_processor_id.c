@@ -37,6 +37,7 @@ unsigned int check_preemption_disabled(const char *what1, const char *what2)
 	 */
 	preempt_disable_notrace();
 
+	BUG_ON(1);
 	if (!printk_ratelimit())
 		goto out_enable;
 
@@ -44,7 +45,6 @@ unsigned int check_preemption_disabled(const char *what1, const char *what2)
 		what1, what2, preempt_count() - 1, current->comm, current->pid);
 
 	printk("caller is %pS\n", __builtin_return_address(0));
-	dump_stack();
 
 out_enable:
 	preempt_enable_no_resched_notrace();
