@@ -70,10 +70,11 @@ static __poll_t pidfd_wait_poll(struct file *file, struct poll_table_struct *pts
 	struct task_struct *task = priv->task;
 
 	pidfd_wait_lock(task);
-	poll_wait(file, &task->signal->wait_pidfd, pts);
+	poll_wait_locked(file, &task->signal->wait_pidfd, pts);
 	if (task->exit_state == priv->block_until)
 		poll_flags = (POLLIN | POLLRDNORM);
 	pidfd_wait_unlock(task);
+
 	return poll_flags;
 }
 
