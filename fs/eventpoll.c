@@ -1319,7 +1319,7 @@ out_unlock:
  * target file wakeup lists.
  */
 static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
-				 poll_table *pt)
+				 poll_table *pt, bool locked)
 {
 	struct epitem *epi = ep_item_from_epqueue(pt);
 	struct eppoll_entry *pwq;
@@ -1328,10 +1328,21 @@ static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
 		init_waitqueue_func_entry(&pwq->wait, ep_poll_callback);
 		pwq->whead = whead;
 		pwq->base = epi;
-		if (epi->event.events & EPOLLEXCLUSIVE)
-			add_wait_queue_exclusive(whead, &pwq->wait);
-		else
-			add_wait_queue(whead, &pwq->wait);
+		if (epi->event.events & EPOLLEXCLUSIVE) {
+			pwq->flags |= WQ_FLAG_EXCLUSIVE;
+			if (locked) {
+				__add_wait_queue_entry_tail(whead, &pwq->wait);
+			} else {
+				add_wait_queue_exclusive(whead, &pwq->wait);
+			}
+		} else {
+			pwq->flags &= ~WQ_FLAG_EXCLUSIVE;
+			if (locked) {
+				__add_wait_queue(whead, &pwq->wait);
+			} else {
+				add_wait_queue(whead, &pwq->wait);
+			}
+		}
 		list_add_tail(&pwq->llink, &epi->pwqlist);
 		epi->nwait++;
 	} else {
