@@ -63,47 +63,21 @@ void task_set_exit_state(struct task_struct *task, int state)
 	return;
 }
 
-/*
- * Will block if task state hasn't been set to exited/reaped
- * TODO: What about EXIT_TRACE ?
- */
-static int pidfd_read_exit_status(struct task_struct *task, int block_until)
-{
-	int ret;
-
-	pidfd_wait_lock(task);
-	if (task->exit_state) {
-		ret = task->exit_state;
-		goto read_ret;
-	}
-
-	ret = wait_event_interruptible_locked(task->signal->wait_pidfd,
-					      (task->exit_state == block_until));
-	if (!ret)
-		ret = task->exit_state;
-	/*
-	 * The wait should return only if the task's state has
-	 * changed to something non-zero.
-	 */
-	WARN_ON_ONCE(!ret);
-read_ret:
-	pidfd_wait_unlock(task);
-	return ret;
-}
-
 static __poll_t pidfd_wait_poll(struct file *file, struct poll_table_struct *pts)
 {
+	int poll_flags = 0;
 	struct pidfd_wait_priv *priv = file->private_data;
 	struct task_struct *task = priv->task;
-	int ret, poll_flags = (POLLIN | POLLRDNORM);
 
-	ret = pidfd_read_exit_status(task, priv->block_until);
-	if (ret < 0)
-		poll_flags |= POLLERR;
-
+	pidfd_wait_lock(task);
+	poll_wait(file, &task->signal->wait_pidfd, pts);
+	if (task->exit_state == priv->block_until)
+		poll_flags = (POLLIN | POLLRDNORM);
+	pidfd_wait_unlock(task);
 	return poll_flags;
 }
 
+/* Will block if task state hasn't been set to exited/reaped */
 static ssize_t pidfd_wait_read_iter(struct kiocb *iocb, struct iov_iter *to)
 {
 	void *buf;
@@ -112,13 +86,20 @@ static ssize_t pidfd_wait_read_iter(struct kiocb *iocb, struct iov_iter *to)
 	struct task_struct *task = priv->task;
 	ssize_t ret, size_ret;
 
-	ret = pidfd_read_exit_status(task, priv->block_until);
+	pidfd_wait_lock(task);
+	// TODO: What about EXIT_TRACE
+	ret = task->exit_state;
+	if (!ret)
+		ret = wait_event_interruptible_locked(task->signal->wait_pidfd,
+						(task->exit_state == priv->block_until));
+	if (!ret)
+		ret = task->exit_state;
+	pidfd_wait_unlock(task);
 
-	/*
-	 * Debugging, remove later.
-	 * sprintf(buf, "status[pid:%d exit_state=%d]", pid_nr(pid), ret);
-	 * trace_printk("Returning exit_state %s\n", buf);
-	 */
+	if (ret < 0)
+		return ret;
+
+	WARN_ON_ONCE(!ret);	/* exit_state has to be non-zero at this point */
 
 	size_ret = sizeof(siginfo_t);
 	buf = kmalloc(size_ret, GFP_KERNEL);
