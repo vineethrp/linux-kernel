@@ -879,7 +879,7 @@ static int ep_eventpoll_release(struct inode *inode, struct file *file)
 static __poll_t ep_read_events_proc(struct eventpoll *ep, struct list_head *head,
 			       void *priv);
 static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
-				 poll_table *pt);
+				 poll_table *pt, bool locked);
 
 /*
  * Differs from ep_eventpoll_poll() in that internal callers already have
@@ -1329,14 +1329,14 @@ static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
 		pwq->whead = whead;
 		pwq->base = epi;
 		if (epi->event.events & EPOLLEXCLUSIVE) {
-			pwq->flags |= WQ_FLAG_EXCLUSIVE;
+			pwq->wait.flags |= WQ_FLAG_EXCLUSIVE;
 			if (locked) {
 				__add_wait_queue_entry_tail(whead, &pwq->wait);
 			} else {
 				add_wait_queue_exclusive(whead, &pwq->wait);
 			}
 		} else {
-			pwq->flags &= ~WQ_FLAG_EXCLUSIVE;
+			pwq->wait.flags &= ~WQ_FLAG_EXCLUSIVE;
 			if (locked) {
 				__add_wait_queue(whead, &pwq->wait);
 			} else {

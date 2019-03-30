@@ -116,7 +116,7 @@ struct poll_table_page {
  * poll table.
  */
 static void __pollwait(struct file *filp, wait_queue_head_t *wait_address,
-		       poll_table *p);
+		       poll_table *p, bool locked);
 
 void poll_initwait(struct poll_wqueues *pwq)
 {
@@ -234,8 +234,8 @@ static void __pollwait(struct file *filp, wait_queue_head_t *wait_address,
 	if (!locked) {
 		add_wait_queue(wait_address, &entry->wait);
 	} else {
-		entry->flags &= ~WQ_FLAG_EXCLUSIVE;
-		__add_wait_queue(whead, &entry->wait);
+		entry->wait.flags &= ~WQ_FLAG_EXCLUSIVE;
+		__add_wait_queue(wait_address, &entry->wait);
 	}
 }
 
