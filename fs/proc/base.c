@@ -2999,6 +2999,7 @@ static unsigned int proc_tgid_base_poll(struct file *file, struct poll_table_str
 {
 	int poll_flags = 0;
 	struct task_struct *task;
+	struct pid *pid;
 
 	read_lock(&tasklist_lock);
 	task = get_proc_task(file->f_path.dentry->d_inode);
@@ -3007,8 +3008,10 @@ static unsigned int proc_tgid_base_poll(struct file *file, struct poll_table_str
 	else if (task->exit_state == EXIT_ZOMBIE)
 		poll_flags = POLLIN | POLLRDNORM;
 
-	if (!poll_flags)
-		poll_wait(file, &task->signal->wait_pidfd, pts);
+	if (!poll_flags) {
+		pid = proc_pid(file->f_path.dentry->d_inode);
+		poll_wait(file, &pid->wait_pidfd, pts);
+	}
 
 	put_task_struct(task);
 	read_unlock(&tasklist_lock);

@@ -180,6 +180,15 @@ static void delayed_put_task_struct(struct rcu_head *rhp)
 	put_task_struct(tsk);
 }
 
+static void task_exit_wakeup_pollers(struct task_struct *task)
+{
+	struct pid *pid;
+
+	pid = get_task_pid(task, PIDTYPE_PID);
+	wake_up_all(&pid->wait_pidfd);
+	put_pid(pid);
+}
+
 /*
  * Set the task's exit_state if its in a ZOMBIE state.
  * Return true if the exit_state could be set, otherwise false.
@@ -192,7 +201,7 @@ static bool task_set_exit_state_if_zombie(struct task_struct *task, int state)
 		return false;
 
 	if (state == EXIT_ZOMBIE || state == EXIT_DEAD)
-		wake_up_all(&task->signal->wait_pidfd);
+		task_exit_wakeup_pollers(task);
 	return true;
 }
 
@@ -206,7 +215,7 @@ static void task_set_exit_state(struct task_struct *task, int state)
 	task->exit_state = state;
 
 	if (state == EXIT_ZOMBIE || state == EXIT_DEAD)
-		wake_up_all(&task->signal->wait_pidfd);
+		task_exit_wakeup_pollers(task);
 	return;
 }
 

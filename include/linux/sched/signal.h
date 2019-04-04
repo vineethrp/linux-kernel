@@ -82,7 +82,6 @@ struct signal_struct {
 	struct list_head	thread_head;
 
 	wait_queue_head_t	wait_chldexit;	/* for wait4() */
-	wait_queue_head_t	wait_pidfd;
 
 	/* current thread group signal load-balancing target: */
 	struct task_struct	*curr_target;
