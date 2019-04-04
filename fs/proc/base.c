@@ -2995,8 +2995,29 @@ static int proc_tgid_base_readdir(struct file *file, struct dir_context *ctx)
 				   tgid_base_stuff, ARRAY_SIZE(tgid_base_stuff));
 }
 
+static unsigned int proc_tgid_base_poll(struct file *file, struct poll_table_struct *pts)
+{
+	int poll_flags = 0;
+	struct task_struct *task;
+
+	read_lock(&tasklist_lock);
+	task = get_proc_task(file->f_path.dentry->d_inode);
+	if (!task || task->exit_state == EXIT_DEAD)
+		poll_flags = POLLIN | POLLRDNORM | POLLERR;
+	else if (task->exit_state == EXIT_ZOMBIE)
+		poll_flags = POLLIN | POLLRDNORM;
+
+	if (!poll_flags)
+		poll_wait(file, &task->signal->wait_pidfd, pts);
+
+	put_task_struct(task);
+	read_unlock(&tasklist_lock);
+	return poll_flags;
+}
+
 static const struct file_operations proc_tgid_base_operations = {
 	.read		= generic_read_dir,
+	.poll		= proc_tgid_base_poll,
 	.iterate_shared	= proc_tgid_base_readdir,
 	.llseek		= generic_file_llseek,
 };
