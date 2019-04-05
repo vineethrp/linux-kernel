@@ -1173,7 +1173,7 @@ static int de_thread(struct task_struct *tsk)
 		leader->exit_signal = -1;
 
 		BUG_ON(leader->exit_state != EXIT_ZOMBIE);
-		leader->exit_state = EXIT_DEAD;
+		task_set_exit_state(leader, EXIT_DEAD);
 
 		/*
 		 * We are going to release_task()->ptrace_unlink() silently,

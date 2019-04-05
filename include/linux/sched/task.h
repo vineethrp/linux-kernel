@@ -135,4 +135,43 @@ static inline void task_unlock(struct task_struct *p)
 	spin_unlock(&p->alloc_lock);
 }
 
+static void task_exit_wakeup_pollers(struct task_struct *task)
+{
+	struct pid *pid;
+
+	pid = get_task_pid(task, PIDTYPE_PID);
+	wake_up_all(&pid->wait_pidfd);
+	put_pid(pid);
+}
+
+/*
+ * Set the task's exit_state if its in a ZOMBIE state.
+ * Return true if the exit_state could be set, otherwise false.
+ */
+static inline bool task_set_exit_state_if_zombie(struct task_struct *task, int state)
+{
+	lockdep_assert_held(&tasklist_lock);
+
+	if (cmpxchg(&task->exit_state, EXIT_ZOMBIE, state) != EXIT_ZOMBIE)
+		return false;
+
+	if (state == EXIT_ZOMBIE || state == EXIT_DEAD)
+		task_exit_wakeup_pollers(task);
+	return true;
+}
+
+/*
+ * Set the task's exit state, waking up any waiters.
+ */
+static inline void task_set_exit_state(struct task_struct *task, int state)
+{
+	lockdep_assert_held(&tasklist_lock);
+
+	task->exit_state = state;
+
+	if (state == EXIT_ZOMBIE || state == EXIT_DEAD)
+		task_exit_wakeup_pollers(task);
+	return;
+}
+
 #endif /* _LINUX_SCHED_TASK_H */

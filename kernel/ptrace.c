@@ -522,7 +522,7 @@ static bool __ptrace_detach(struct task_struct *tracer, struct task_struct *p)
 	}
 	/* Mark it as in the process of being reaped. */
 	if (dead)
-		p->exit_state = EXIT_DEAD;
+		task_set_exit_state(p, EXIT_DEAD);
 	return dead;
 }
 
