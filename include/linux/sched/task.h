@@ -135,15 +135,4 @@ static inline void task_unlock(struct task_struct *p)
 	spin_unlock(&p->alloc_lock);
 }
 
-static void task_exit_wakeup_pollers(struct task_struct *task)
-{
-	struct pid *pid;
-
-	lockdep_assert_held(&tasklist_lock);
-
-	pid = get_task_pid(task, PIDTYPE_PID);
-	wake_up_all(&pid->wait_pidfd);
-	put_pid(pid);
-}
-
 #endif /* _LINUX_SCHED_TASK_H */
