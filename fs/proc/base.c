@@ -3069,8 +3069,43 @@ static int proc_tgid_base_readdir(struct file *file, struct dir_context *ctx)
 				   tgid_base_stuff, ARRAY_SIZE(tgid_base_stuff));
 }
 
+static unsigned int proc_tgid_base_poll(struct file *file, struct poll_table_struct *pts)
+{
+	int poll_flags = 0;
+	struct task_struct *task;
+	struct pid *pid;
+
+	task = get_proc_task(file->f_path.dentry->d_inode);
+
+	/*
+	 * tasklist_lock must be held because to avoid racing with
+	 * changes in exit_state and wake up. Basically to avoid:
+	 *
+	 * P0: read exit_state = 0
+	 * P1: write exit_state to EXIT_DEAD
+	 * P1: Do a wake up - wq is empty, so do nothing
+	 * P0: Queue for polling - wait forever.
+	 */
+	read_lock(&tasklist_lock);
+	if (!task)
+		poll_flags = POLLIN | POLLRDNORM | POLLERR;
+	else if (task->exit_state == EXIT_ZOMBIE || task->exit_state == EXIT_DEAD)
+		poll_flags = POLLIN | POLLRDNORM;
+
+	if (!poll_flags) {
+		pid = proc_pid(file->f_path.dentry->d_inode);
+		poll_wait(file, &pid->wait_pidfd, pts);
+	}
+	read_unlock(&tasklist_lock);
+
+	if (task)
+		put_task_struct(task);
+	return poll_flags;
+}
+
 static const struct file_operations proc_tgid_base_operations = {
 	.read		= generic_read_dir,
+	.poll		= proc_tgid_base_poll,
 	.iterate_shared	= proc_tgid_base_readdir,
 	.llseek		= generic_file_llseek,
 };
