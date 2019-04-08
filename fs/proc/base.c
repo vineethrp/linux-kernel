@@ -3001,20 +3001,21 @@ static unsigned int proc_tgid_base_poll(struct file *file, struct poll_table_str
 	struct task_struct *task;
 	struct pid *pid;
 
-	read_lock(&tasklist_lock);
 	task = get_proc_task(file->f_path.dentry->d_inode);
-	if (!task || task->exit_state == EXIT_DEAD)
+
+	read_lock(&tasklist_lock);
+	if (!task)
 		poll_flags = POLLIN | POLLRDNORM | POLLERR;
-	else if (task->exit_state == EXIT_ZOMBIE)
+	else if (task->exit_state == EXIT_ZOMBIE || task->exit_state == EXIT_DEAD)
 		poll_flags = POLLIN | POLLRDNORM;
 
 	if (!poll_flags) {
 		pid = proc_pid(file->f_path.dentry->d_inode);
 		poll_wait(file, &pid->wait_pidfd, pts);
 	}
+	read_unlock(&tasklist_lock);
 
 	put_task_struct(task);
-	read_unlock(&tasklist_lock);
 	return poll_flags;
 }
 
