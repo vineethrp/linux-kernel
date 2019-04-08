@@ -1,0 +1,5 @@
+-------------------
+TODO
+- EXIT_TRACE ?
+- do_notify_parent_stop ?
+- kselftests based on test-fork*
