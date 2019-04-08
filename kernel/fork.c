@@ -1685,8 +1685,41 @@ static void pidfd_show_fdinfo(struct seq_file *m, struct file *f)
 }
 #endif
 
+static unsigned int pidfd_poll(struct file *file, struct poll_table_struct *pts)
+{
+	struct task_struct *task;
+	struct pid *pid;
+	int poll_flags = 0;
+
+	/*
+	 * tasklist_lock must be held because to avoid racing with
+	 * changes in exit_state and wake up. Basically to avoid:
+	 *
+	 * P0: read exit_state = 0
+	 * P1: write exit_state = EXIT_DEAD
+	 * P1: Do a wake up - wq is empty, so do nothing
+	 * P0: Queue for polling - wait forever.
+	 */
+	read_lock(&tasklist_lock);
+	pid = file->private_data;
+	task = pid_task(pid, PIDTYPE_PID);
+	WARN_ON_ONCE(task && !thread_group_leader(task));
+
+	if (!task || (task->exit_state && thread_group_empty(task)))
+		poll_flags = POLLIN | POLLRDNORM;
+
+	if (!poll_flags)
+		poll_wait(file, &pid->wait_pidfd, pts);
+
+	read_unlock(&tasklist_lock);
+
+	return poll_flags;
+}
+
+
 const struct file_operations pidfd_fops = {
 	.release = pidfd_release,
+	.poll = pidfd_poll,
 #ifdef CONFIG_PROC_FS
 	.show_fdinfo = pidfd_show_fdinfo,
 #endif
