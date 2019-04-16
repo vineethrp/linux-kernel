@@ -3087,9 +3087,7 @@ static unsigned int proc_tgid_base_poll(struct file *file, struct poll_table_str
 	 * P0: Queue for polling - wait forever.
 	 */
 	read_lock(&tasklist_lock);
-	if (!task)
-		poll_flags = POLLIN | POLLRDNORM | POLLERR;
-	else if (task->exit_state == EXIT_ZOMBIE || task->exit_state == EXIT_DEAD)
+	if (!task || (task->exit_state && thread_group_empty(task)))
 		poll_flags = POLLIN | POLLRDNORM;
 
 	if (!poll_flags) {
