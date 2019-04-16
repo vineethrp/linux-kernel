@@ -456,19 +456,13 @@ int test_pidfd_poll_exec(int use_waitpid)
 	    ksft_print_msg("Parent: Child process waited for.\n");
     } else {
 	pidfd = open_pidfd(test_name, pid);
-	if (poll_pidfd(test_name, pidfd) & EPOLLERR)
-	    ksft_exit_fail_msg("%s test: Unexpected epoll error\n", test_name);
+	poll_pidfd(test_name, pidfd);
     }
 
     time_t prog_time = time(NULL) - prog_start;
 
     ksft_print_msg("Time waited for child: %lu\n", prog_time);
 
-    /* Check to make sure poll_pidfd returns error after reaping */
-    if (!use_waitpid &&
-	(waitpid (pid, &status, 0) != pid || !(poll_pidfd(test_name, pidfd) & EPOLLERR))) {
-	ksft_exit_fail_msg("%s test: poll_pidfd EPOLLERR check failed\n", test_name);
-    }
     close(pidfd);
 
     if (prog_time < CHILD_MIN_WAIT || prog_time > CHILD_MIN_WAIT + 2)
@@ -522,8 +516,7 @@ int test_pidfd_poll_leader_exit(int use_waitpid)
 	    ksft_print_msg("Parent: error\n");
     } else {
 	pidfd = open_pidfd(test_name, pid);
-	if (poll_pidfd(test_name, pidfd) & EPOLLERR)
-	    ksft_exit_fail_msg("%s test: Unexpected epoll error\n", test_name);
+	poll_pidfd(test_name, pidfd);
     }
 
     if (ret == pid)
@@ -533,11 +526,6 @@ int test_pidfd_poll_leader_exit(int use_waitpid)
 
     ksft_print_msg("Time since child exit: %lu\n", since_child_exit);
 
-    /* Check to make sure poll_pidfd returns error after reaping */
-    if (!use_waitpid &&
-	(waitpid (pid, &status, 0) != pid || !(poll_pidfd(test_name, pidfd) & EPOLLERR))) {
-	ksft_exit_fail_msg("%s test: poll_pidfd EPOLLERR check failed\n", test_name);
-    }
     close(pidfd);
 
     if (since_child_exit < CHILD_MIN_WAIT || since_child_exit > CHILD_MIN_WAIT + 2)
