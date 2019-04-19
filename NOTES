@@ -2,3 +2,5 @@
 TODO:
 - Improve test cases based on Dan suggestion?
 - Address fixups to test cases from other reviewers
+- Update tests with POLL HUP
+- make it work with clone pidfd patches
