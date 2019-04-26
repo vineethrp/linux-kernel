@@ -20,9 +20,14 @@
 
 #include "../kselftest.h"
 
+#define str(s) _str(s)
+#define _str(s) #s
 #define CHILD_THREAD_MIN_WAIT 3 /* seconds */
+
 #define MAX_EVENTS 5
+#ifndef __NR_pidfd_send_signal
 #define __NR_pidfd_send_signal 424
+#endif
 
 #ifndef CLONE_PIDFD
 #define CLONE_PIDFD 0x00001000
@@ -392,48 +397,47 @@ static int test_pidfd_send_signal_syscall_support(void)
 	return 0;
 }
 
-void *test_pidfd_poll_exec_thread(void *priv)
+static void *test_pidfd_poll_exec_thread(void *priv)
 {
-	char waittime[256];
-
 	ksft_print_msg("Child Thread: starting. pid %d tid %d ; and sleeping\n",
 			getpid(), syscall(SYS_gettid));
 	ksft_print_msg("Child Thread: doing exec of sleep\n");
 
-	sprintf(waittime, "%d", CHILD_THREAD_MIN_WAIT);
-	execl("/bin/sleep", "sleep", waittime, (char *)NULL);
+	execl("/bin/sleep", "sleep", str(CHILD_THREAD_MIN_WAIT), (char *)NULL);
 
 	ksft_print_msg("Child Thread: DONE. pid %d tid %d\n",
 			getpid(), syscall(SYS_gettid));
 	return NULL;
 }
 
-static int poll_pidfd(const char *test_name, int pidfd)
+static void poll_pidfd(const char *test_name, int pidfd)
 {
 	int c;
-	int epoll_fd = epoll_create1(0);
+	int epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 	struct epoll_event event, events[MAX_EVENTS];
 
 	if (epoll_fd == -1)
-		ksft_exit_fail_msg("%s test: Failed to create epoll file descriptor\n",
-				   test_name);
+		ksft_exit_fail_msg("%s test: Failed to create epoll file descriptor "
+				   "(errno %d)\n",
+				   test_name, errno);
 
 	event.events = EPOLLIN;
 	event.data.fd = pidfd;
 
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, pidfd, &event)) {
-		ksft_print_msg("%s test: Failed to add epoll file descriptor: Skipping\n",
-			       test_name);
-		_exit(PIDFD_SKIP);
+		ksft_exit_fail_msg("%s test: Failed to add epoll file descriptor "
+				   "(errno %d)\n",
+				   test_name, errno);
 	}
 
 	c = epoll_wait(epoll_fd, events, MAX_EVENTS, 5000);
 	if (c != 1 || !(events[0].events & EPOLLIN))
-		ksft_exit_fail_msg("%s test: Unexpected epoll_wait result (c=%d, events=%x)\n",
-				   test_name, c, events[0].events);
+		ksft_exit_fail_msg("%s test: Unexpected epoll_wait result (c=%d, events=%x) ",
+				   "(errno %d)\n",
+				   test_name, c, events[0].events, errno);
 
 	close(epoll_fd);
-	return events[0].events;
+	return;
 
 }
 
@@ -449,10 +453,10 @@ static int child_poll_exec_test(void *args)
 	 * If the wait in the parent returns too soon, the test fails.
 	 */
 	while (1)
-		;
+		sleep(1);
 }
 
-int test_pidfd_poll_exec(int use_waitpid)
+static int test_pidfd_poll_exec(int use_waitpid)
 {
 	int pid, pidfd = 0;
 	int status, ret;
@@ -462,6 +466,9 @@ int test_pidfd_poll_exec(int use_waitpid)
 
 	ksft_print_msg("Parent: pid: %d\n", getpid());
 	pid = pidfd_clone(CLONE_PIDFD, &pidfd, child_poll_exec_test);
+	if (pid < 0)
+		ksft_exit_fail_msg("%s test: pidfd_clone failed (ret %d, errno %d)\n",
+				   test_name, pid, errno);
 
 	ksft_print_msg("Parent: Waiting for Child (%d) to complete.\n", pid);
 
@@ -488,10 +495,8 @@ int test_pidfd_poll_exec(int use_waitpid)
 		ksft_test_result_pass("%s test: Passed\n", test_name);
 }
 
-void *test_pidfd_poll_leader_exit_thread(void *priv)
+static void *test_pidfd_poll_leader_exit_thread(void *priv)
 {
-	char waittime[256];
-
 	ksft_print_msg("Child Thread: starting. pid %d tid %d ; and sleeping\n",
 			getpid(), syscall(SYS_gettid));
 	sleep(CHILD_THREAD_MIN_WAIT);
@@ -516,7 +521,7 @@ static int child_poll_leader_exit_test(void *args)
 	syscall(SYS_exit, 0);
 }
 
-int test_pidfd_poll_leader_exit(int use_waitpid)
+static int test_pidfd_poll_leader_exit(int use_waitpid)
 {
 	int pid, pidfd = 0;
 	int status, ret;
@@ -527,8 +532,15 @@ int test_pidfd_poll_leader_exit(int use_waitpid)
 	child_exit_secs = mmap(NULL, sizeof *child_exit_secs, PROT_READ | PROT_WRITE,
 			MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
+	if (child_exit_secs == MAP_FAILED)
+		ksft_exit_fail_msg("%s test: mmap failed (errno %d)\n",
+				   test_name, errno);
+
 	ksft_print_msg("Parent: pid: %d\n", getpid());
 	pid = pidfd_clone(CLONE_PIDFD, &pidfd, child_poll_leader_exit_test);
+	if (pid < 0)
+		ksft_exit_fail_msg("%s test: pidfd_clone failed (ret %d, errno %d)\n",
+				   test_name, pid, errno);
 
 	ksft_print_msg("Parent: Waiting for Child (%d) to complete.\n", pid);
 
