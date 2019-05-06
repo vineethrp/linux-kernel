@@ -7656,6 +7656,10 @@ static int fixup_bpf_calls(struct bpf_verifier_env *env)
 		if (insn->src_reg == BPF_PSEUDO_CALL)
 			continue;
 
+		if (insn->imm == BPF_FUNC_probe_read)
+			pr_warn_once("bpf_probe_read is deprecated, please use "
+				     "bpf_probe_read_{kernel,user} in eBPF programs.\n");
+
 		if (insn->imm == BPF_FUNC_get_route_realm)
 			prog->dst_needed = 1;
 		if (insn->imm == BPF_FUNC_get_prandom_u32)
