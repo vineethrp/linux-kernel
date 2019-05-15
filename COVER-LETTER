@@ -1,0 +1,7 @@
+The series removes users of the following APIs, and the APIs themselves, since
+the regular non - _notrace variants don't do any tracing anyway.
+ * hlist_for_each_entry_rcu_notrace
+ * rcu_dereference_raw_notrace
+-----------
+option-prefix PATCH RFC
+option-subject Remove some notrace RCU APIs
