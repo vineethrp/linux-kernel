@@ -20,8 +20,10 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/proc_fs.h>
 #include <linux/spinlock.h>
 #include <linux/smp.h>
+#include <linux/smpboot.h>
 #include <linux/rcupdate_wait.h>
 #include <linux/interrupt.h>
 #include <linux/sched.h>
@@ -33,6 +35,7 @@
 #include <linux/completion.h>
 #include <linux/moduleparam.h>
 #include <linux/percpu.h>
+#include <linux/percpu-rwsem.h>
 #include <linux/notifier.h>
 #include <linux/cpu.h>
 #include <linux/mutex.h>
@@ -51,6 +54,9 @@
 #include <linux/tick.h>
 #include <linux/sysrq.h>
 #include <linux/kprobes.h>
+#include <linux/time.h>
+#include <linux/jiffies.h>
+#include <linux/posix-timers.h>
 
 #include "tree.h"
 #include "rcu.h"
@@ -3093,6 +3099,158 @@ static int rcu_pm_notify(struct notifier_block *self,
 	return NOTIFY_OK;
 }
 
+unsigned long spin_count_max = 10000000;
+DEFINE_STATIC_PERCPU_RWSEM(prsem);
+
+enum pr_work_type { PERCPU_RWSEM, RWSEM };
+int work_type;
+static DECLARE_RWSEM(pr_rwsem);
+
+int y = 1;
+
+static void rcu_pr_kthread(unsigned int cpu)
+{
+	unsigned int *statusp = this_cpu_ptr(&rcu_data.rcu_pr_kthread_status);
+	char work, *workp = this_cpu_ptr(&rcu_data.rcu_pr_has_work);
+	unsigned long spincnt, spincnt1, spincnt2, x=0;
+
+	for (spincnt = 0; spincnt < spin_count_max; spincnt++) {
+		if (work_type == PERCPU_RWSEM)
+			percpu_down_read(&prsem);
+		else
+			down_read(&pr_rwsem);
+
+		x = x + y;
+
+		if (work_type == PERCPU_RWSEM)
+			percpu_up_read(&prsem);
+		else
+			up_read(&pr_rwsem);
+	}
+
+	*workp = 0;
+	// pr_err("done %lu\n", x);
+}
+
+static void rcu_pr_kthread_setup(unsigned int cpu)
+{
+	struct sched_param sp;
+
+	sp.sched_priority = 1;
+	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
+}
+
+static void rcu_pr_kthread_park(unsigned int cpu)
+{
+	per_cpu(rcu_data.rcu_pr_kthread_status, cpu) = RCU_KTHREAD_OFFCPU;
+}
+
+static int rcu_pr_kthread_should_run(unsigned int cpu)
+{
+	return __this_cpu_read(rcu_data.rcu_pr_has_work);
+}
+
+
+static struct smp_hotplug_thread rcu_pr_thread_spec = {
+	.store			= &rcu_data.pr_kthread,
+	.thread_should_run	= rcu_pr_kthread_should_run,
+	.thread_fn		= rcu_pr_kthread,
+	.thread_comm		= "rcupr/%u",
+	.setup			= rcu_pr_kthread_setup,
+	.park			= rcu_pr_kthread_park,
+};
+
+void do_one_pr_test(void)
+{
+	int cpu;
+	int all_done;
+
+	for_each_online_cpu(cpu) {
+		per_cpu(rcu_data.rcu_pr_has_work, cpu) = 0;
+
+		preempt_disable();
+		if (cpu == smp_processor_id()) {
+			preempt_enable();
+			continue;
+		}
+		preempt_enable();
+
+		// pr_err("waking up thread on online cpu %d\n", cpu);
+		per_cpu(rcu_data.rcu_pr_has_work, cpu) = 1;
+		smp_mb();
+		wake_up_process(per_cpu(rcu_data.pr_kthread, cpu));
+	}
+
+	while(1) {
+		all_done = 1;
+		msleep(1);
+		for_each_online_cpu(cpu) {
+			if (per_cpu(rcu_data.rcu_pr_has_work, cpu) == 1) {
+				all_done = 0;
+				break;
+			}
+		}
+		if (all_done)
+			break;
+	}
+	// pr_err("all done\n");
+}
+
+ssize_t pr_proc_write(struct file * f, const char __user * b, size_t s, loff_t * off)
+{
+	u64 before, after;
+
+	WRITE_ONCE(work_type, PERCPU_RWSEM);
+repeat:
+	smp_mb();
+
+	before = ktime_get_mono_fast_ns();
+	do_one_pr_test();
+	after = ktime_get_mono_fast_ns();
+
+	pr_err("Total time: %lu us , type: %s\n", (unsigned long)((after - before) / 1000),
+				(work_type == PERCPU_RWSEM ? "percpu-rwsem" : "rwsem") );
+
+	if (work_type != RWSEM) {
+		work_type = RWSEM;
+		msleep(100);
+		goto repeat;
+	}
+
+}
+
+static const struct file_operations pr_ops = {
+	.write = pr_proc_write,
+	.llseek = default_llseek,
+};
+
+/*
+ * Spawn boost kthreads -- called as soon as the scheduler is running.
+ */
+static void __init rcu_spawn_pr_kthreads(void)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu)
+		per_cpu(rcu_data.rcu_pr_has_work, cpu) = 0;
+
+	if (WARN_ONCE(smpboot_register_percpu_thread(&rcu_pr_thread_spec),
+				"%s: Could not start rcub kthread, OOM is now expected behavior\n", __func__))
+		return;
+
+	proc_create("prw_test", 0777, NULL,
+			    &pr_ops);
+
+	/*
+	for_each_online_cpu(cpu) {
+		pr_err("waking up thread on online cpu %d\n", cpu);
+		per_cpu(rcu_data.rcu_pr_has_work, cpu) = 1;
+		smp_mb();
+		wake_up_process(per_cpu(rcu_data.pr_kthread, cpu));
+	}
+	*/
+}
+
 /*
  * Spawn the kthreads that handle RCU's grace periods.
  */
@@ -3134,6 +3292,7 @@ static int __init rcu_spawn_gp_kthread(void)
 	wake_up_process(t);
 	rcu_spawn_nocb_kthreads();
 	rcu_spawn_boost_kthreads();
+	rcu_spawn_pr_kthreads();
 	return 0;
 }
 early_initcall(rcu_spawn_gp_kthread);
