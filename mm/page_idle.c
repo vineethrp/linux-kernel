@@ -11,9 +11,45 @@
 #include <linux/mmu_notifier.h>
 #include <linux/page_ext.h>
 #include <linux/page_idle.h>
+#include <linux/proc_fs.h>
 
 #define BITMAP_CHUNK_SIZE	sizeof(u64)
 #define BITMAP_CHUNK_BITS	(BITMAP_CHUNK_SIZE * BITS_PER_BYTE)
+
+static atomic_t idleset;    	// Number of pages with idle flag set
+static atomic_t idlecleared;	// Number of pages with idle flag cleared
+static atomic_t refset;		// Number of pages referenced (due to
+				// accessed hw bit clear
+
+static ssize_t proc_write(struct file * f,
+		const char __user * b, size_t s, loff_t * off)
+{
+	atomic_set(&idleset, 0);
+	atomic_set(&idlecleared, 0);
+	atomic_set(&refset, 0);
+	return 1;
+}
+
+static int proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "idleset: %d  idlecleared: %d  refset: %d\n",
+			atomic_read(&idleset),
+			atomic_read(&idlecleared),
+			atomic_read(&refset));
+	return 0;
+}
+
+static int proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, proc_show, NULL);
+}
+
+static const struct file_operations pr_ops = {
+	.open = proc_open,
+	.read = seq_read,
+	.write = proc_write,
+	.llseek = default_llseek,
+};
 
 /*
  * Idle page tracking only considers user memory pages, for other types of
@@ -151,9 +187,17 @@ static ssize_t page_idle_bitmap_read(struct file *file, struct kobject *kobj,
 				 * refs and recheck.
 				 */
 				page_idle_clear_pte_refs(page);
+
+				if (!page_is_idle(page))
+					atomic_inc(&refset);
+
 				if (page_is_idle(page))
 					*out |= 1ULL << bit;
 			}
+
+			if (!page_is_idle(page))
+				atomic_inc(&idlecleared);
+
 			put_page(page);
 		}
 		if (bit == BITMAP_CHUNK_BITS - 1)
@@ -189,6 +233,7 @@ static ssize_t page_idle_bitmap_write(struct file *file, struct kobject *kobj,
 			page = page_idle_get_page(pfn);
 			if (page) {
 				page_idle_clear_pte_refs(page);
+				atomic_inc(&idleset);
 				set_page_idle(page);
 				put_page(page);
 			}
@@ -227,6 +272,8 @@ struct page_ext_operations page_idle_ops = {
 static int __init page_idle_init(void)
 {
 	int err;
+
+	proc_create("pidle_test", 0777, NULL, &pr_ops);
 
 	err = sysfs_create_group(mm_kobj, &page_idle_attr_group);
 	if (err) {
