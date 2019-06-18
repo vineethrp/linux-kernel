@@ -413,6 +413,7 @@ struct mem_size_stats {
 	unsigned long private_clean;
 	unsigned long private_dirty;
 	unsigned long referenced;
+	unsigned long idle;
 	unsigned long anonymous;
 	unsigned long lazyfree;
 	unsigned long anonymous_thp;
@@ -478,6 +479,10 @@ static void smaps_account(struct mem_size_stats *mss, struct page *page,
 	/* Accumulate the size in pages that have been accessed. */
 	if (young || page_is_young(page) || PageReferenced(page))
 		mss->referenced += size;
+
+	/* Track how many pages were set as idle during idle-tracking */
+	if (page_is_idle(page))
+		mss->idle += size;
 
 	/*
 	 * Then accumulate quantities that may depend on sharing, or that may
@@ -799,6 +804,7 @@ static void __show_smap(struct seq_file *m, const struct mem_size_stats *mss,
 	SEQ_PUT_DEC(" kB\nPrivate_Clean:  ", mss->private_clean);
 	SEQ_PUT_DEC(" kB\nPrivate_Dirty:  ", mss->private_dirty);
 	SEQ_PUT_DEC(" kB\nReferenced:     ", mss->referenced);
+	SEQ_PUT_DEC(" kB\nIdle:           ", mss->idle);
 	SEQ_PUT_DEC(" kB\nAnonymous:      ", mss->anonymous);
 	SEQ_PUT_DEC(" kB\nLazyFree:       ", mss->lazyfree);
 	SEQ_PUT_DEC(" kB\nAnonHugePages:  ", mss->anonymous_thp);
