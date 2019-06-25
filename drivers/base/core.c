@@ -694,6 +694,8 @@ int (*platform_notify_remove)(struct device *dev) = NULL;
 static struct kobject *dev_kobj;
 struct kobject *sysfs_dev_char_kobj;
 struct kobject *sysfs_dev_block_kobj;
+struct kobject *sysfs_dev_nodev_kobj;
+struct kobject *sysfs_devices_nodev_kobj;
 
 static DEFINE_MUTEX(device_hotplug_lock);
 
@@ -1788,7 +1790,9 @@ static struct kobject *device_to_dev_kobj(struct device *dev)
 {
 	struct kobject *kobj;
 
-	if (dev->class)
+	if (!dev)
+		kobj = sysfs_dev_nodev_kobj;
+	else if (dev->class)
 		kobj = dev->class->dev_kobj;
 	else
 		kobj = sysfs_dev_char_kobj;
@@ -1809,6 +1813,36 @@ static int device_create_sys_dev_entry(struct device *dev)
 
 	return error;
 }
+
+static int device_create_sys_dev_nodev_entry(char *name, dev_t devt,
+					     struct kobject *nodev_kobj)
+{
+	struct kobject *kobj = device_to_dev_kobj(NULL);
+	int error = 0;
+	char devt_str[15];
+
+	if (kobj) {
+		format_dev_t(devt_str, devt);
+		error = sysfs_create_link(kobj, nodev_kobj, devt_str);
+	}
+
+	return error;
+}
+
+int device_create_nodev(char *name, dev_t devt)
+{
+	pr_err("device_create_nodev called name=%s\n", name);
+	// Check if exists and if it does, only create the symlink
+	struct kobject *kobj = kobject_create_and_add(name,
+						      sysfs_devices_nodev_kobj);
+	pr_err("kobj1 = %lx\n", (unsigned long)kobj);
+	if (!kobj)
+		return 0;
+
+	/* Link to /sys/dev/ */
+	return device_create_sys_dev_nodev_entry(name, devt, kobj);
+}
+EXPORT_SYMBOL_GPL(device_create_nodev);
 
 static void device_remove_sys_dev_entry(struct device *dev)
 {
@@ -2327,9 +2361,19 @@ int __init devices_init(void)
 	sysfs_dev_char_kobj = kobject_create_and_add("char", dev_kobj);
 	if (!sysfs_dev_char_kobj)
 		goto char_kobj_err;
+	sysfs_dev_nodev_kobj = kobject_create_and_add("nodev", dev_kobj);
+	if (!sysfs_dev_nodev_kobj)
+		goto nodev_kobj_err;
+	sysfs_devices_nodev_kobj = kobject_create_and_add("nodev", &devices_kset->kobj);
+	if (!sysfs_devices_nodev_kobj)
+		goto devices_nodev_kobj_err;
 
 	return 0;
 
+ devices_nodev_kobj_err:
+	kobject_put(sysfs_dev_nodev_kobj);
+ nodev_kobj_err:
+	kobject_put(sysfs_dev_char_kobj);
  char_kobj_err:
 	kobject_put(sysfs_dev_block_kobj);
  block_kobj_err:

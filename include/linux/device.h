@@ -617,6 +617,7 @@ extern int device_create_file(struct device *device,
 			      const struct device_attribute *entry);
 extern void device_remove_file(struct device *dev,
 			       const struct device_attribute *attr);
+extern int device_create_nodev(char *name, dev_t dev);
 extern bool device_remove_file_self(struct device *dev,
 				    const struct device_attribute *attr);
 extern int __must_check device_create_bin_file(struct device *dev,

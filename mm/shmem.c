@@ -21,6 +21,7 @@
  * This file is released under the GPL.
  */
 
+#include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/vfs.h>
@@ -3678,10 +3679,48 @@ static const struct vm_operations_struct shmem_vm_ops = {
 #endif
 };
 
+static struct list_head init_shmem_devts;
+struct shmem_devt_node {
+	dev_t devt;
+	struct list_head list;
+};
+static bool shmem_init_completed;
+
+static int __init shmem_late_init(void)
+{
+	struct shmem_devt_node *cur, *next;
+	
+	list_for_each_entry_safe(cur, next, &init_shmem_devts, list) {
+		device_create_nodev("shmem", cur->devt);
+		kfree(cur);
+	}
+
+	return 0;
+}
+
 static struct dentry *shmem_mount(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data)
 {
-	return mount_nodev(fs_type, flags, data, shmem_fill_super);
+	struct dentry *ret;
+	struct shmem_devt_node *node;
+
+	ret = mount_nodev(fs_type, flags, data, shmem_fill_super);
+	if (IS_ERR_OR_NULL(ret))
+		return ret;
+
+	if (shmem_init_completed) {
+		/* Create /sys/devices/nodev entry */
+		device_create_nodev("shmem", ret->d_sb->s_dev);
+	} else {
+		/* Defer to later */
+		node = kmalloc(sizeof(*node), GFP_KERNEL);
+		if (!node)
+			return NULL;
+		node->devt = ret->d_sb->s_dev;
+		list_add(&node->list, &init_shmem_devts);
+	}
+
+	return ret;
 }
 
 static struct file_system_type shmem_fs_type = {
@@ -3695,6 +3734,8 @@ static struct file_system_type shmem_fs_type = {
 int __init shmem_init(void)
 {
 	int error;
+
+	INIT_LIST_HEAD(&init_shmem_devts);
 
 	/* If rootfs called this, don't re-init */
 	if (shmem_inode_cachep)
@@ -3721,6 +3762,7 @@ int __init shmem_init(void)
 	else
 		shmem_huge = 0; /* just in case it was patched */
 #endif
+	shmem_init_completed = true;
 	return 0;
 
 out1:
@@ -4032,3 +4074,5 @@ struct page *shmem_read_mapping_page_gfp(struct address_space *mapping,
 #endif
 }
 EXPORT_SYMBOL_GPL(shmem_read_mapping_page_gfp);
+
+late_initcall(shmem_late_init);

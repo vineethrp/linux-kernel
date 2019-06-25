@@ -762,9 +762,13 @@ struct kobject *kobject_create_and_add(const char *name, struct kobject *parent)
 	struct kobject *kobj;
 	int retval;
 
+	pr_err("creating kobj %s\n", name);
+
 	kobj = kobject_create();
 	if (!kobj)
 		return NULL;
+
+	pr_err("created  kobj %s\n", name);
 
 	retval = kobject_add(kobj, parent, "%s", name);
 	if (retval) {
