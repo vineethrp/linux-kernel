@@ -3679,21 +3679,12 @@ static const struct vm_operations_struct shmem_vm_ops = {
 #endif
 };
 
-static struct list_head init_shmem_devts;
-struct shmem_devt_node {
-	dev_t devt;
-	struct list_head list;
-};
-static bool shmem_init_completed;
+static bool shmem_init_done;
 
 static int __init shmem_late_init(void)
 {
-	struct shmem_devt_node *cur, *next;
-	
-	list_for_each_entry_safe(cur, next, &init_shmem_devts, list) {
-		device_create_nodev("shmem", cur->devt);
-		kfree(cur);
-	}
+	device_create_nodev("shmem", shm_mnt->mnt_sb->s_dev);
+	shmem_init_done = true;
 
 	return 0;
 }
@@ -3702,24 +3693,15 @@ static struct dentry *shmem_mount(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data)
 {
 	struct dentry *ret;
-	struct shmem_devt_node *node;
 
 	ret = mount_nodev(fs_type, flags, data, shmem_fill_super);
 	if (IS_ERR_OR_NULL(ret))
 		return ret;
 
-	if (shmem_init_completed) {
-		/* Create /sys/devices/nodev entry */
-		device_create_nodev("shmem", ret->d_sb->s_dev);
-	} else {
-		/* Defer to later */
-		node = kmalloc(sizeof(*node), GFP_KERNEL);
-		if (!node)
-			return NULL;
-		node->devt = ret->d_sb->s_dev;
-		list_add(&node->list, &init_shmem_devts);
-	}
+	if (!shmem_init_done)
+		return ret;
 
+	device_create_nodev("shmem", ret->d_sb->s_dev);
 	return ret;
 }
 
@@ -3734,8 +3716,6 @@ static struct file_system_type shmem_fs_type = {
 int __init shmem_init(void)
 {
 	int error;
-
-	INIT_LIST_HEAD(&init_shmem_devts);
 
 	/* If rootfs called this, don't re-init */
 	if (shmem_inode_cachep)
@@ -3762,7 +3742,6 @@ int __init shmem_init(void)
 	else
 		shmem_huge = 0; /* just in case it was patched */
 #endif
-	shmem_init_completed = true;
 	return 0;
 
 out1:
