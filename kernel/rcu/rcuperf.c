@@ -323,6 +323,7 @@ rcu_perf_reader(void *arg)
 {
 	unsigned long flags;
 	int idx;
+	int i = 0;
 	long me = (long)arg;
 
 	VERBOSE_PERFOUT_STRING("rcu_perf_reader task started");
@@ -331,11 +332,13 @@ rcu_perf_reader(void *arg)
 	atomic_inc(&n_rcu_perf_reader_started);
 
 	do {
+		trace_printk("cpu: %d reader loop %d\n", smp_processor_id(), i);
 		local_irq_save(flags);
 		idx = cur_ops->readlock();
 		cur_ops->readunlock(idx);
 		local_irq_restore(flags);
 		rcu_perf_wait_shutdown();
+		trace_printk("reader loop done %d\n", i++);
 	} while (!torture_must_stop());
 	torture_kthread_stopping("rcu_perf_reader");
 	return 0;
@@ -387,6 +390,7 @@ rcu_perf_writer(void *arg)
 	}
 
 	do {
+		trace_printk("cpu: %d writer loop %d\n", smp_processor_id(), i);
 		if (writer_holdoff)
 			udelay(writer_holdoff);
 		wdp = &wdpp[i];
@@ -447,6 +451,7 @@ retry:
 				}
 			}
 		}
+		trace_printk("writer loop done %d\n", i);
 		if (done && !alldone &&
 		    atomic_read(&n_rcu_perf_writer_finished) >= nrealwriters)
 			alldone = true;
