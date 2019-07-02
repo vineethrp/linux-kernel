@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 # SPDX-License-Identifier: GPL-2.0+
 #
 # Run a kvm-based test of the specified tree on the specified configs.

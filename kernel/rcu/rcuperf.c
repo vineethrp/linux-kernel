@@ -34,6 +34,7 @@
 #include <linux/stat.h>
 #include <linux/srcu.h>
 #include <linux/slab.h>
+#include <linux/trace_clock.h>
 #include <asm/byteorder.h>
 #include <linux/torture.h>
 #include <linux/vmalloc.h>
@@ -86,6 +87,8 @@ torture_param(bool, shutdown, RCUPERF_SHUTDOWN,
 	      "Shutdown at end of performance tests.");
 torture_param(int, verbose, 1, "Enable verbose debugging printk()s");
 torture_param(int, writer_holdoff, 0, "Holdoff (us) between GPs, zero to disable");
+torture_param(int, preempt_disable_test, 0, "Do the preempt disable loop test");
+torture_param(int, preempt_disable_busy_wait, 5000, "Preempt-disable per-loop wait in usecs");
 
 static char *perf_type = "rcu";
 module_param(perf_type, charp, 0444);
@@ -96,6 +99,7 @@ static int nrealwriters;
 static struct task_struct **writer_tasks;
 static struct task_struct **reader_tasks;
 static struct task_struct *shutdown_task;
+static struct task_struct *pd_task;
 
 static u64 **writer_durations;
 static int *writer_n_durations;
@@ -413,6 +417,9 @@ retry:
 		} else {
 			rcu_perf_writer_state = RTWS_SYNC;
 			cur_ops->sync();
+			if (i % 20 == 0) {
+				//pr_err("writer %ld loop=%d gpseq=%lu\n", me, i, cur_ops->get_gp_seq());
+			}
 		}
 		rcu_perf_writer_state = RTWS_IDLE;
 		t = ktime_get_mono_fast_ns();
@@ -452,6 +459,7 @@ retry:
 			alldone = true;
 		if (started && !alldone && i < MAX_MEAS - 1)
 			i++;
+		//pr_err("writer %d i now %d\n", me, i);
 		rcu_perf_wait_shutdown();
 	} while (!torture_must_stop());
 	if (gp_async) {
@@ -461,6 +469,41 @@ retry:
 	rcu_perf_writer_state = RTWS_STOPPING;
 	writer_n_durations[me] = i_max;
 	torture_kthread_stopping("rcu_perf_writer");
+	return 0;
+}
+
+static void busy_wait(int time_us)
+{
+	u64 start, end;
+	start = trace_clock_local();
+	do {
+		end = trace_clock_local();
+		if (kthread_should_stop())
+			break;
+	} while ((end - start) < (time_us * 1000));
+}
+
+static int
+rcu_perf_preempt_disable(void *arg)
+{
+	struct sched_param sp;
+
+	VERBOSE_PERFOUT_STRING("rcu_perf_preempt_disable task started");
+
+	// Create pd thread on last CPU
+	set_cpus_allowed_ptr(current, cpumask_of(nr_cpu_ids - 1));
+	sp.sched_priority = 1;
+	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
+
+	pr_err("PD test created on cpu %d\n", smp_processor_id());
+
+	do {
+		preempt_disable();
+		busy_wait(preempt_disable_busy_wait);
+		preempt_enable();
+	} while (!torture_must_stop());
+
+	torture_kthread_stopping("rcu_perf_preempt_disable");
 	return 0;
 }
 
@@ -548,6 +591,11 @@ rcu_perf_cleanup(void)
 		kfree(writer_n_durations);
 	}
 
+	if (pd_task) {
+		torture_stop_kthread(rcu_perf_preempt_disable, pd_task);
+		kfree(pd_task);
+	}
+
 	/* Do torture-type-specific cleanup operations.  */
 	if (cur_ops->cleanup != NULL)
 		cur_ops->cleanup();
@@ -571,7 +619,9 @@ static int compute_real(int n)
 		if (nr <= 0)
 			nr = 1;
 	}
-	return nr;
+
+	// Reserve 2 cpus for testing
+	return nr - 2;
 }
 
 /*
@@ -681,6 +731,20 @@ rcu_perf_init(void)
 		if (firsterr)
 			goto unwind;
 	}
+
+	if (preempt_disable_test) {
+		pd_task = kzalloc(sizeof(*pd_task), GFP_KERNEL);
+		if (!pd_task) {
+			firsterr = -ENOMEM;
+			goto unwind;
+		}
+
+		firsterr = torture_create_kthread(rcu_perf_preempt_disable,
+				NULL, pd_task);
+		if (firsterr)
+			goto unwind;
+	}
+
 	torture_init_end();
 	return 0;
 

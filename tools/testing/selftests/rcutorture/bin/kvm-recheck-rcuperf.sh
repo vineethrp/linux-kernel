@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 # SPDX-License-Identifier: GPL-2.0+
 #
 # Analyze a given results directory for rcuperf performance measurements.
@@ -78,6 +79,7 @@ END {
 	print "90th percentile grace-period duration: " gptimes[pct90];
 	print "99th percentile grace-period duration: " gptimes[pct99];
 	print "Maximum grace-period duration: " gptimes[newNR];
+	print "Batches " nbatches " done";
 	print "Grace periods: " ngps + 0 " Batches: " nbatches + 0 " Ratio: " ngps / nbatches;
 	print "Computed from rcuperf printk output.";
 }'
