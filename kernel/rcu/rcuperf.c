@@ -514,7 +514,20 @@ rcu_perf_preempt_disable(void *arg)
 	do {
 		preempt_disable();
 		busy_wait(preempt_disable_busy_wait);
+
+		/* Prevent stalls and unnecessary extension of grace period */
+		set_tsk_need_resched(curr);
+		set_preempt_need_resched();
+
 		preempt_enable();
+
+		/* Just in case preempt_enable didn't resched ;-) */
+		cond_resched();
+
+		if (i++ % 1000 == 0){
+			pr_err("pd: looped once in 1000, i = %d\n", i);
+			trace_printk("pd: looped once in 1000, i = %d\n", i);
+		}
 	} while (!torture_must_stop());
 
 	torture_kthread_stopping("rcu_perf_preempt_disable");
