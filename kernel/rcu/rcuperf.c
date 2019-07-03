@@ -89,6 +89,7 @@ torture_param(int, verbose, 1, "Enable verbose debugging printk()s");
 torture_param(int, writer_holdoff, 0, "Holdoff (us) between GPs, zero to disable");
 torture_param(int, pd_test, 0, "Do the preempt disable loop test");
 torture_param(int, pd_busy_wait, 5000, "Preempt-disable per-loop wait in usecs");
+torture_param(int, pd_resched, 1, "Preempt-disable per-loop wait in usecs");
 
 static char *perf_type = "rcu";
 module_param(perf_type, charp, 0444);
@@ -516,13 +517,16 @@ rcu_perf_preempt_disable(void *arg)
 		busy_wait(pd_busy_wait);
 
 		/* Prevent stalls and unnecessary extension of grace period */
-		set_tsk_need_resched(curr);
-		set_preempt_need_resched();
+		if (pd_resched) {
+			set_tsk_need_resched(curr);
+			set_preempt_need_resched();
+		}
 
 		preempt_enable();
 
 		/* Just in case preempt_enable didn't resched ;-) */
-		cond_resched();
+		if (pd_resched)
+			cond_resched();
 #if 0
 		if (i++ % 1000 == 0){
 			pr_err("pd: looped once in 1000, i = %d\n", i);
