@@ -523,11 +523,12 @@ rcu_perf_preempt_disable(void *arg)
 
 		/* Just in case preempt_enable didn't resched ;-) */
 		cond_resched();
-
+#if 0
 		if (i++ % 1000 == 0){
 			pr_err("pd: looped once in 1000, i = %d\n", i);
 			trace_printk("pd: looped once in 1000, i = %d\n", i);
 		}
+#endif
 	} while (!torture_must_stop());
 
 	torture_kthread_stopping("rcu_perf_preempt_disable");
