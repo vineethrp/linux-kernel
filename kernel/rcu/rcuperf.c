@@ -124,7 +124,7 @@ static int rcu_perf_writer_state;
 #define RTWS_STOPPING		6
 
 #define MAX_MEAS 10000
-#define MIN_MEAS 500
+#define MIN_MEAS 100
 
 /*
  * Operations vector for selecting different types of tests.
