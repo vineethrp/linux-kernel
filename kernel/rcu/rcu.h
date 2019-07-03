@@ -429,12 +429,14 @@ static inline void srcu_init(void) { }
 static inline bool rcu_gp_is_normal(void) { return true; }
 static inline bool rcu_gp_is_expedited(void) { return false; }
 static inline void rcu_expedite_gp(void) { }
+static inline bool rcu_expedite_gp_called(void) { }
 static inline void rcu_unexpedite_gp(void) { }
 static inline void rcu_request_urgent_qs_task(struct task_struct *t) { }
 #else /* #ifdef CONFIG_TINY_RCU */
 bool rcu_gp_is_normal(void);     /* Internal RCU use. */
 bool rcu_gp_is_expedited(void);  /* Internal RCU use. */
 void rcu_expedite_gp(void);
+bool rcu_expedite_gp_called(void);
 void rcu_unexpedite_gp(void);
 void rcupdate_announce_bootup_oddness(void);
 void rcu_request_urgent_qs_task(struct task_struct *t);

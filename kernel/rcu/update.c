@@ -155,6 +155,15 @@ void rcu_expedite_gp(void)
 EXPORT_SYMBOL_GPL(rcu_expedite_gp);
 
 /**
+ * rcu_expedite_gp_called - Was there a prior call to rcu_expedite_gp()?
+ */
+bool rcu_expedite_gp_called(void)
+{
+	return (atomic_read(&rcu_expedited_nesting) != 0);
+}
+EXPORT_SYMBOL_GPL(rcu_expedite_gp_called);
+
+/**
  * rcu_unexpedite_gp - Cancel prior rcu_expedite_gp() invocation
  *
  * Undo a prior call to rcu_expedite_gp().  If all prior calls to

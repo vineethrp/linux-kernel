@@ -379,6 +379,11 @@ rcu_perf_writer(void *arg)
 	if (holdoff)
 		schedule_timeout_uninterruptible(holdoff * HZ);
 
+	// Wait for rcu_unexpedite_gp() to be called from init to avoid
+	// doing expedited GPs if we are not supposed to
+	while (!gp_exp && rcu_expedite_gp_called())
+		schedule_timeout_uninterruptible(1);
+
 	t = ktime_get_mono_fast_ns();
 	if (atomic_inc_return(&n_rcu_perf_writer_started) >= nrealwriters) {
 		t_rcu_perf_writer_started = t;
