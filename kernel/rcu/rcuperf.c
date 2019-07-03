@@ -493,14 +493,23 @@ rcu_perf_preempt_disable(void *arg)
 {
 	struct sched_param sp;
 
-	VERBOSE_PERFOUT_STRING("rcu_perf_preempt_disable task started");
+	VERBOSE_PERFOUT_STRING("rcu_perf_preempt_disable task thread enter");
 
 	// Create pd thread on last CPU
 	set_cpus_allowed_ptr(current, cpumask_of(nr_cpu_ids - 1));
 	sp.sched_priority = 1;
 	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
 
-	pr_err("PD test created on cpu %d\n", smp_processor_id());
+	// Wait for holdoff
+	if (holdoff)
+		schedule_timeout_uninterruptible(holdoff * HZ);
+
+	// Wait for rcu_unexpedite_gp() to be called from init to avoid
+	// doing expedited GPs if we are not supposed to
+	while (!gp_exp && rcu_expedite_gp_called())
+		schedule_timeout_uninterruptible(1);
+
+	pr_err("PD test started on cpu %d\n", smp_processor_id());
 
 	do {
 		preempt_disable();
