@@ -518,7 +518,7 @@ rcu_perf_preempt_disable(void *arg)
 
 		/* Prevent stalls and unnecessary extension of grace period */
 		if (pd_resched) {
-			set_tsk_need_resched(curr);
+			set_tsk_need_resched(current);
 			set_preempt_need_resched();
 		}
 
