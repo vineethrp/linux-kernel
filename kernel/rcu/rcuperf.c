@@ -533,6 +533,7 @@ rcu_perf_preempt_disable(void *arg)
 			trace_printk("pd: looped once in 1000, i = %d\n", i);
 		}
 #endif
+		rcu_perf_wait_shutdown();
 	} while (!torture_must_stop());
 
 	torture_kthread_stopping("rcu_perf_preempt_disable");
