@@ -58,10 +58,10 @@
 #undef DECLARE_EVENT_CLASS
 #define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)	\
 static notrace void							\
-__bpf_trace_##call(void *__data, proto)					\
+__bpf_trace_raw_##call(void *__data, proto)					\
 {									\
 	struct bpf_prog *prog = __data;					\
-	CONCATENATE(bpf_trace_run, COUNT_ARGS(args))(prog, CAST_TO_U64(args));	\
+	CONCATENATE(bpf_trace_raw_run, COUNT_ARGS(args))(prog, CAST_TO_U64(args));\
 }
 
 /*
@@ -72,13 +72,13 @@ __bpf_trace_##call(void *__data, proto)					\
 #define __DEFINE_EVENT(template, call, proto, args, size)		\
 static inline void bpf_test_probe_##call(void)				\
 {									\
-	check_trace_callback_type_##call(__bpf_trace_##template);	\
+	check_trace_callback_type_##call(__bpf_trace_raw_##template);	\
 }									\
 static struct bpf_raw_event_map	__used					\
 	__attribute__((section("__bpf_raw_tp_map")))			\
-__bpf_trace_tp_map_##call = {						\
+__bpf_trace_raw_tp_map_##call = {						\
 	.tp		= &__tracepoint_##call,				\
-	.bpf_func	= (void *)__bpf_trace_##template,		\
+	.bpf_func	= (void *)__bpf_trace_raw_##template,		\
 	.num_args	= COUNT_ARGS(args),				\
 	.writable_size	= size,						\
 };
