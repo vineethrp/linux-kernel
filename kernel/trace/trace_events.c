@@ -2018,8 +2018,10 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 		trace_create_file("trigger", 0644, file->dir, file,
 				  &event_trigger_fops);
 
-		trace_create_file("bpf_attach", 0644, file->dir, file,
-				  &bpf_attach_trigger_fops);
+#ifdef CONFIG_BPF_EVENTS
+		trace_create_file("bpf", 0644, file->dir, file,
+				  &event_bpf_attach_fops);
+#endif
 	}
 
 #ifdef CONFIG_HIST_TRIGGERS
@@ -2267,6 +2269,9 @@ trace_create_new_event(struct trace_event_call *call,
 	atomic_set(&file->sm_ref, 0);
 	atomic_set(&file->tm_ref, 0);
 	INIT_LIST_HEAD(&file->triggers);
+#ifdef CONFIG_BPF_EVENTS
+	INIT_LIST_HEAD(&file->bpf_attached);
+#endif
 	list_add(&file->list, &tr->events);
 
 	return file;

@@ -1469,3 +1469,172 @@ out_put_btp:
 	bpf_put_raw_tracepoint(btp);
 	return ERR_PTR(err);
 }
+
+enum event_bpf_cmd { BPF_ATTACH, BPF_DETACH };
+#define BPF_CMD_BUF_LEN 32
+
+static ssize_t
+event_bpf_attach_write(struct file *filp, const char __user *ubuf,
+		    size_t cnt, loff_t *ppos)
+{
+	int err, prog_fd, cmd_num, len;
+	struct trace_event_call *call;
+	struct trace_event_file *file;
+	struct bpf_raw_tracepoint *raw_tp, *next;
+	char buf[BPF_CMD_BUF_LEN], *end, *tok;
+	enum event_bpf_cmd cmd;
+	struct bpf_prog *prog;
+	bool prog_put = true;
+
+	len = min((int)cnt, BPF_CMD_BUF_LEN - 1);
+
+	err = copy_from_user(buf, ubuf, len);
+	if (err)
+		return err;
+	buf[len] = 0;
+
+	/* Parse 2 arguments of format: <cmd>:<fd> */
+	end = &buf[0];
+	cmd_num = 1;
+	while (cmd_num < 3) {
+		tok = strsep(&end, ":");
+		if (!tok)
+			return -EINVAL;
+
+		switch (cmd_num) {
+		case 1:
+			if (!strncmp(tok, "attach", 6))
+				cmd = BPF_ATTACH;
+			else if (!strncmp(tok, "detach", 6))
+				cmd = BPF_DETACH;
+			else
+				return -EINVAL;
+			break;
+		case 2:
+			err = kstrtoint(tok, 10, &prog_fd);
+			if (err)
+				return err;
+			break;
+		}
+		cmd_num++;
+	}
+	if (cmd_num != 3)
+		return -EINVAL;
+
+	file = event_file_data(filp);
+	/* Command is to attach fd to tracepoint */
+	if (cmd == BPF_ATTACH) {
+		mutex_lock(&event_mutex);
+		call = file->event_call;
+
+		raw_tp = bpf_raw_tracepoint_open((char *)call->tp->name,
+						 prog_fd);
+		if (IS_ERR(raw_tp)) {
+			mutex_unlock(&event_mutex);
+			return PTR_ERR(raw_tp);
+		}
+
+		list_add(&raw_tp->event_attached, &file->bpf_attached);
+		mutex_unlock(&event_mutex);
+		*ppos += cnt;
+		return cnt;
+	}
+
+	/* Command is to detach fd from tracepoint */
+	prog = bpf_prog_get(prog_fd);
+	if (IS_ERR(prog))
+		return PTR_ERR(prog);
+
+	mutex_lock(&event_mutex);
+	list_for_each_entry_safe(raw_tp, next, &file->bpf_attached,
+				 event_attached) {
+		if (raw_tp->prog == prog) {
+			list_del(&raw_tp->event_attached);
+			bpf_raw_tracepoint_close(raw_tp);
+			prog_put = false;
+			break;
+		}
+	}
+	mutex_unlock(&event_mutex);
+
+	if (prog_put)
+		bpf_prog_put(prog);
+	*ppos += cnt;
+	return cnt;
+}
+
+static void *event_bpf_attach_next(struct seq_file *m, void *t, loff_t *pos)
+{
+	struct trace_event_file *file = event_file_data(m->private);
+
+	return seq_list_next(t, &file->bpf_attached, pos);
+}
+
+static void *event_bpf_attach_start(struct seq_file *m, loff_t *pos)
+{
+	struct trace_event_file *event_file;
+
+	/* ->stop() is called even if ->start() fails */
+	mutex_lock(&event_mutex);
+	event_file = event_file_data(m->private);
+	if (unlikely(!event_file))
+		return ERR_PTR(-ENODEV);
+
+	if (list_empty(&event_file->bpf_attached))
+		return NULL;
+
+	return seq_list_start(&event_file->bpf_attached, *pos);
+}
+
+static void event_bpf_attach_stop(struct seq_file *m, void *t)
+{
+	mutex_unlock(&event_mutex);
+}
+
+static int event_bpf_attach_show(struct seq_file *m, void *v)
+{
+	struct bpf_raw_tracepoint *raw_tp;
+
+	raw_tp = list_entry(v, struct bpf_raw_tracepoint, event_attached);
+	seq_printf(m, "prog id: %u\n", raw_tp->prog->aux->id);
+	return 0;
+}
+
+static const struct seq_operations event_bpf_attach_seq_ops = {
+	.start = event_bpf_attach_start,
+	.next = event_bpf_attach_next,
+	.stop = event_bpf_attach_stop,
+	.show = event_bpf_attach_show,
+};
+
+static int event_bpf_attach_open(struct inode *inode, struct file *file)
+{
+	int ret = 0;
+
+	mutex_lock(&event_mutex);
+
+	if (unlikely(!event_file_data(file))) {
+		mutex_unlock(&event_mutex);
+		return -ENODEV;
+	}
+
+	if (file->f_mode & FMODE_READ) {
+		ret = seq_open(file, &event_bpf_attach_seq_ops);
+		if (!ret) {
+			struct seq_file *m = file->private_data;
+
+			m->private = file;
+		}
+	}
+
+	mutex_unlock(&event_mutex);
+
+	return ret;
+}
+
+const struct file_operations event_bpf_attach_fops = {
+	.open = event_bpf_attach_open,
+	.read = seq_read,
+	.write = event_bpf_attach_write,
+	.llseek = default_llseek,
+};

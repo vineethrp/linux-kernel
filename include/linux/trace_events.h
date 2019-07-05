@@ -371,6 +371,7 @@ struct trace_event_file {
 	struct trace_array		*tr;
 	struct trace_subsystem_dir	*system;
 	struct list_head		triggers;
+	struct list_head		bpf_attached;
 
 	/*
 	 * 32 bit flags:
