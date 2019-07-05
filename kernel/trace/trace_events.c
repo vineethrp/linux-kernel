@@ -2017,6 +2017,9 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 
 		trace_create_file("trigger", 0644, file->dir, file,
 				  &event_trigger_fops);
+
+		trace_create_file("bpf_attach", 0644, file->dir, file,
+				  &bpf_attach_trigger_fops);
 	}
 
 #ifdef CONFIG_HIST_TRIGGERS

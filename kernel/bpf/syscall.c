@@ -1737,21 +1737,11 @@ static int bpf_obj_get(const union bpf_attr *attr)
 				attr->file_flags);
 }
 
-struct bpf_raw_tracepoint {
-	struct bpf_raw_event_map *btp;
-	struct bpf_prog *prog;
-};
-
 static int bpf_raw_tracepoint_release(struct inode *inode, struct file *filp)
 {
 	struct bpf_raw_tracepoint *raw_tp = filp->private_data;
 
-	if (raw_tp->prog) {
-		bpf_probe_unregister(raw_tp->btp, raw_tp->prog);
-		bpf_prog_put(raw_tp->prog);
-	}
-	bpf_put_raw_tracepoint(raw_tp->btp);
-	kfree(raw_tp);
+	bpf_raw_tracepoint_close(raw_tp);
 	return 0;
 }
 
@@ -1761,64 +1751,27 @@ static const struct file_operations bpf_raw_tp_fops = {
 	.write		= bpf_dummy_write,
 };
 
-#define BPF_RAW_TRACEPOINT_OPEN_LAST_FIELD raw_tracepoint.prog_fd
-
-static int bpf_raw_tracepoint_open(const union bpf_attr *attr)
+static int bpf_raw_tracepoint_open_syscall(const union bpf_attr *attr)
 {
-	struct bpf_raw_tracepoint *raw_tp;
-	struct bpf_raw_event_map *btp;
-	struct bpf_prog *prog;
+	int tp_fd;
 	char tp_name[128];
-	int tp_fd, err;
+	struct bpf_raw_tracepoint *raw_tp;
 
 	if (strncpy_from_user(tp_name, u64_to_user_ptr(attr->raw_tracepoint.name),
 			      sizeof(tp_name) - 1) < 0)
 		return -EFAULT;
 	tp_name[sizeof(tp_name) - 1] = 0;
 
-	btp = bpf_get_raw_tracepoint(tp_name);
-	if (!btp)
-		return -ENOENT;
+	raw_tp = bpf_raw_tracepoint_open(tp_name, attr->raw_tracepoint.prog_fd);
+	if (IS_ERR(raw_tp))
+		return PTR_ERR(raw_tp);
 
-	raw_tp = kzalloc(sizeof(*raw_tp), GFP_USER);
-	if (!raw_tp) {
-		err = -ENOMEM;
-		goto out_put_btp;
-	}
-	raw_tp->btp = btp;
-
-	prog = bpf_prog_get(attr->raw_tracepoint.prog_fd);
-	if (IS_ERR(prog)) {
-		err = PTR_ERR(prog);
-		goto out_free_tp;
-	}
-	if (prog->type != BPF_PROG_TYPE_RAW_TRACEPOINT &&
-	    prog->type != BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE) {
-		err = -EINVAL;
-		goto out_put_prog;
-	}
-
-	err = bpf_probe_register(raw_tp->btp, prog);
-	if (err)
-		goto out_put_prog;
-
-	raw_tp->prog = prog;
 	tp_fd = anon_inode_getfd("bpf-raw-tracepoint", &bpf_raw_tp_fops, raw_tp,
 				 O_CLOEXEC);
-	if (tp_fd < 0) {
-		bpf_probe_unregister(raw_tp->btp, prog);
-		err = tp_fd;
-		goto out_put_prog;
-	}
-	return tp_fd;
+	if (tp_fd < 0)
+		bpf_probe_unregister(raw_tp->btp, raw_tp->prog);
 
-out_put_prog:
-	bpf_prog_put(prog);
-out_free_tp:
-	kfree(raw_tp);
-out_put_btp:
-	bpf_put_raw_tracepoint(btp);
-	return err;
+	return tp_fd;
 }
 
 static int bpf_prog_attach_check_attach_type(const struct bpf_prog *prog,
@@ -2848,7 +2801,7 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 		err = bpf_obj_get_info_by_fd(&attr, uattr);
 		break;
 	case BPF_RAW_TRACEPOINT_OPEN:
-		err = bpf_raw_tracepoint_open(&attr);
+		err = bpf_raw_tracepoint_open_syscall(&attr);
 		break;
 	case BPF_BTF_LOAD:
 		err = bpf_btf_load(&attr);

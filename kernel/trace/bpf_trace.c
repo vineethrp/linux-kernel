@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/bpf.h>
 #include <linux/bpf_perf_event.h>
+#include <linux/bpf_trace.h>
 #include <linux/filter.h>
 #include <linux/uaccess.h>
 #include <linux/ctype.h>
@@ -1413,3 +1414,58 @@ static int __init bpf_event_init(void)
 
 fs_initcall(bpf_event_init);
 #endif /* CONFIG_MODULES */
+
+void bpf_raw_tracepoint_close(struct bpf_raw_tracepoint *raw_tp)
+{
+	if (raw_tp->prog) {
+		bpf_probe_unregister(raw_tp->btp, raw_tp->prog);
+		bpf_prog_put(raw_tp->prog);
+	}
+	bpf_put_raw_tracepoint(raw_tp->btp);
+	kfree(raw_tp);
+}
+
+struct bpf_raw_tracepoint *bpf_raw_tracepoint_open(char *tp_name, int prog_fd)
+{
+	struct bpf_raw_tracepoint *raw_tp;
+	struct bpf_raw_event_map *btp;
+	struct bpf_prog *prog;
+	int err;
+
+	btp = bpf_get_raw_tracepoint(tp_name);
+	if (!btp)
+		return ERR_PTR(-ENOENT);
+
+	raw_tp = kzalloc(sizeof(*raw_tp), GFP_USER);
+	if (!raw_tp) {
+		err = -ENOMEM;
+		goto out_put_btp;
+	}
+	raw_tp->btp = btp;
+
+	prog = bpf_prog_get(prog_fd);
+	if (IS_ERR(prog)) {
+		err = PTR_ERR(prog);
+		goto out_free_tp;
+	}
+	if (prog->type != BPF_PROG_TYPE_RAW_TRACEPOINT &&
+	    prog->type != BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE) {
+		err = -EINVAL;
+		goto out_put_prog;
+	}
+
+	err = bpf_probe_register(raw_tp->btp, prog);
+	if (err)
+		goto out_put_prog;
+
+	raw_tp->prog = prog;
+	return raw_tp;
+
+out_put_prog:
+	bpf_prog_put(prog);
+out_free_tp:
+	kfree(raw_tp);
+out_put_btp:
+	bpf_put_raw_tracepoint(btp);
+	return ERR_PTR(err);
+}
