@@ -24,6 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <memory.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <asm/unistd.h>
 #include <linux/bpf.h>
@@ -56,6 +59,8 @@
 #ifndef min
 #define min(x, y) ((x) < (y) ? (x) : (y))
 #endif
+
+#define TRACEFS "/sys/kernel/debug/tracing"
 
 static inline __u64 ptr_to_u64(const void *ptr)
 {
@@ -656,6 +661,54 @@ int bpf_raw_tracepoint_open(const char *name, int prog_fd)
 	attr.raw_tracepoint.prog_fd = prog_fd;
 
 	return sys_bpf(BPF_RAW_TRACEPOINT_OPEN, &attr, sizeof(attr));
+}
+
+int bpf_raw_tracepoint_ftrace_attach(const char *subsys, const char *name,
+				     int prog_fd)
+{
+	char buf[256];
+	int len, ret, tfd;
+
+	sprintf(buf, "%s/events/%s/%s/bpf", TRACEFS, subsys, name);
+	tfd = open(buf, O_WRONLY);
+	if (tfd < 0)
+		return tfd;
+
+	sprintf(buf, "attach:%d", prog_fd);
+	len = strlen(buf);
+	ret = write(tfd, buf, len);
+
+	if (ret < 0)
+		goto err;
+	if (ret != len)
+		ret = -1;
+err:
+	close(tfd);
+	return ret;
+}
+
+int bpf_raw_tracepoint_ftrace_detach(const char *subsys, const char *name,
+				     int prog_fd)
+{
+	char buf[256];
+	int len, ret, tfd;
+
+	sprintf(buf, "%s/events/%s/%s/bpf", TRACEFS, subsys, name);
+	tfd = open(buf, O_WRONLY);
+	if (tfd < 0)
+		return tfd;
+
+	sprintf(buf, "detach:%d", prog_fd);
+	len = strlen(buf);
+	ret = write(tfd, buf, len);
+
+	if (ret < 0)
+		goto err;
+	if (ret != len)
+		ret = -1;
+err:
+	close(tfd);
+	return ret;
 }
 
 int bpf_load_btf(void *btf, __u32 btf_size, char *log_buf, __u32 log_buf_size,
