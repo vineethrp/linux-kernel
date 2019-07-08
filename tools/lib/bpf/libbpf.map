@@ -163,4 +163,6 @@ LIBBPF_0.0.3 {
 		bpf_map__is_internal;
 		bpf_map_freeze;
 		btf__finalize_data;
+		bpf_raw_tracepoint_ftrace_attach;
+		bpf_raw_tracepoint_ftrace_detach;
 } LIBBPF_0.0.2;
