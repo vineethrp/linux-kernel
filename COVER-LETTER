@@ -1,0 +1,58 @@
+Hi,
+These patches make it possible to attach BPF programs directly to tracepoints
+using ftrace (/sys/kernel/debug/tracing) without needing the process doing the
+attach to be alive. This has the following benefits:
+
+1. Simplified Security: In Android, we have finer-grained security controls to
+specific ftrace trace events using SELinux labels. We control precisely who is
+allowed to enable an ftrace event already. By adding a node to ftrace for
+attaching BPF programs, we can use the same mechanism to further control who is
+allowed to attach to a trace event.
+
+2. Process lifetime: In Android we are adding usecases where a tracing program
+needs to be attached all the time to a tracepoint, for the full life time of
+the system. Such as to gather statistics where there no need for a detach for
+the full system lifetime. With perf or bpf(2)'s BPF_RAW_TRACEPOINT_OPEN, this
+means keeping a process alive all the time.  However, in Android our BPF loader
+currently (for hardeneded security) involves just starting a process at boot
+time, doing the BPF program loading, and then pinning them to /sys/fs/bpf.  We
+don't keep this process alive all the time. It is more suitable to do a
+one-shot attach of the program using ftrace and not need to have a process
+alive all the time anymore for this. Such process also needs elevated
+privileges since tracepoint program loading currently requires CAP_SYS_ADMIN
+anyway so by design Android's bpfloader runs once at init and exits.
+
+This series add a new bpf file to /sys/kernel/debug/tracing/events/X/Y/bpf
+The following commands can be written into it:
+attach:<fd>     Attaches BPF prog fd to tracepoint
+detach:<fd>     Detaches BPF prog fd to tracepoint
+
+Reading the bpf file will show all the attached programs to the tracepoint.
+
+option-subject Add support to directly attach BPF program to ftrace
+option-prefix PATCH RFC
+
+Cc: Michal Gregorczyk <michalgr@fb.com>
+Cc: Michal Gregorczyk <michalgr@live.com>
+Cc: Adrian Ratiu <adrian.ratiu@collabora.com>
+Cc: Mohammad Husain <russoue@gmail.com>
+Cc: Qais Yousef <qais.yousef@arm.com>
+Cc: Srinivas Ramana <sramana@codeaurora.org>
+Cc: duyuchao <yuchao.du@unisoc.com>
+Cc: Manjo Raja Rao <linux@manojrajarao.com>
+Cc: Karim Yaghmour <karim.yaghmour@opersys.com>
+Cc: Tamir Carmeli <carmeli.tamir@gmail.com>
+Cc: Yonghong Song <yhs@fb.com>
+Cc: Alexei Starovoitov <ast@kernel.org>
+Cc: Brendan Gregg <brendan.d.gregg@gmail.com>
+Cc: Steven Rostedt <rostedt@goodmis.org>
+Cc: Daniel Borkmann <daniel@iogearbox.net>
+Cc: Masami Hiramatsu <mhiramat@kernel.org>
+Cc: Manali Shukla manalishukla14@gmail.com
+Cc: jeffv@google.com
+Cc: primiano@google.com
+Cc: connoro@google.com
+Cc: namhyung@kernel.org
+Cc: namhyung@google.com
+Cc: paul.chaignon@gmail.com
+Cc: kernel-team@android.com
