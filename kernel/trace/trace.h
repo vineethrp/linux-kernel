@@ -1437,6 +1437,13 @@ event_trigger_unlock_commit(struct trace_event_file *file,
 			    void *entry, unsigned long irq_flags, int pc)
 {
 	enum event_trigger_type tt = ETT_NONE;
+	unsigned long eflags = file->flags;
+
+
+	// TODO: Set EVENT_FILE_FL_SOFT_DISABLED_BIT and make sure
+	// nothing else changes.
+	if (eflags & EVENT_FILE_FL_BPF)
+		trace_call_bpf_event(file, event, entry);
 
 	if (!__event_trigger_test_discard(file, buffer, event, entry, &tt))
 		trace_buffer_unlock_commit(file->tr, buffer, event, irq_flags, pc);

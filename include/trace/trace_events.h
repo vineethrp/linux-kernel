@@ -720,7 +720,50 @@ trace_event_raw_event_##call(void *__data, proto)			\
 	{ assign; }							\
 									\
 	trace_event_buffer_commit(&fbuffer);				\
+}									\
+									\
+/* 									\
+ * For compatibility with perf, we reserve the first 64-bits of		\
+ * the entry for pt_regs but don't populate it yet.			\
+ */									\
+static notrace void							\
+trace_event_raw_bpf_event_##call(void *__data, proto)			\
+{									\
+	struct trace_event_file *trace_file = __data;			\
+	struct trace_event_data_offsets_##call __maybe_unused __data_offsets;\
+	struct trace_event_buffer fbuffer;				\
+	struct trace_event_raw_##call *entry;				\
+	int __entry_size, __data_size;					\
+									\
+	__data_size = trace_event_get_offsets_##call(&__data_offsets, args); \
+									\
+	__entry_size = ALIGN(__data_size + sizeof(*entry) + sizeof(u32),\
+			     sizeof(u64));				\
+	__entry_size -= sizeof(u32);					\
+									\
+	entry = trace_event_buffer_reserve(&fbuffer, trace_file,	\
+					   __entry_size);		\
+	if (!entry)							\
+		return;							\
+									\
+	tstruct								\
+									\
+	{ assign; }							\
+									\
+	/* This will run the BPF program */				\
+	trace_event_buffer_commit(&fbuffer);				\
 }
+#if 0
+	/*								\
+	// NOTE:							\
+	// If ftrace size is 42 bytes, then perf size is 44 bytes.	
+	// If ftrace size is 44 bytes, then perf size is 44.
+	// If ftrace size is 46 bytes, then perf size is 52 bytes.
+	// If ftrace size is 48 bytes, then the perf size becomes 52 bytes.
+	//
+#endif
+
+
 /*
  * The ftrace_test_probe is compiled out, it is only here as a build time check
  * to make sure that if the tracepoint handling changes, the ftrace probe will

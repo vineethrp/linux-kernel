@@ -61,8 +61,8 @@ static notrace void							\
 __bpf_trace_raw_##call(void *__data, proto)					\
 {									\
 	struct bpf_prog *prog = __data;					\
-	CONCATENATE(bpf_trace_raw_run, COUNT_ARGS(args))(prog, CAST_TO_U64(args));\
-}
+	CONCATENATE(bpf_trace_raw_run, COUNT_ARGS(args))(prog, CAST_TO_U64(args));	\
+}									\
 
 /*
  * This part is compiled out, it is only here as a build time check

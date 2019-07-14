@@ -119,6 +119,16 @@ unsigned int trace_call_bpf(struct trace_event_call *call, void *ctx)
 }
 EXPORT_SYMBOL_GPL(trace_call_bpf);
 
+unsigned int trace_call_bpf_event(struct trace_event_file *file,
+				  struct ring_buffer_event *event,
+				  void *rec)
+{
+	int size;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(trace_call_bpf_event);
+
 #ifdef CONFIG_BPF_KPROBE_OVERRIDE
 BPF_CALL_2(bpf_override_return, struct pt_regs *, regs, unsigned long, rc)
 {

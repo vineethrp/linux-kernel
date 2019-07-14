@@ -285,7 +285,6 @@ struct trace_event_call {
 #endif
 };
 
-#ifdef CONFIG_PERF_EVENTS
 static inline bool bpf_prog_array_valid(struct trace_event_call *call)
 {
 	/*
@@ -307,7 +306,6 @@ static inline bool bpf_prog_array_valid(struct trace_event_call *call)
 	 */
 	return !!READ_ONCE(call->prog_array);
 }
-#endif
 
 static inline const char *
 trace_event_name(struct trace_event_call *call)
@@ -331,6 +329,7 @@ enum {
 	EVENT_FILE_FL_SOFT_DISABLED_BIT,
 	EVENT_FILE_FL_TRIGGER_MODE_BIT,
 	EVENT_FILE_FL_TRIGGER_COND_BIT,
+	EVENT_FILE_FL_BPF_BIT,
 	EVENT_FILE_FL_PID_FILTER_BIT,
 	EVENT_FILE_FL_WAS_ENABLED_BIT,
 };
@@ -360,6 +359,7 @@ enum {
 	EVENT_FILE_FL_SOFT_DISABLED	= (1 << EVENT_FILE_FL_SOFT_DISABLED_BIT),
 	EVENT_FILE_FL_TRIGGER_MODE	= (1 << EVENT_FILE_FL_TRIGGER_MODE_BIT),
 	EVENT_FILE_FL_TRIGGER_COND	= (1 << EVENT_FILE_FL_TRIGGER_COND_BIT),
+	EVENT_FILE_FL_BPF		= (1 << EVENT_FILE_FL_BPF_BIT),
 	EVENT_FILE_FL_PID_FILTER	= (1 << EVENT_FILE_FL_PID_FILTER_BIT),
 	EVENT_FILE_FL_WAS_ENABLED	= (1 << EVENT_FILE_FL_WAS_ENABLED_BIT),
 };
@@ -468,6 +468,8 @@ trace_trigger_soft_disabled(struct trace_event_file *file)
 
 #ifdef CONFIG_BPF_EVENTS
 unsigned int trace_call_bpf(struct trace_event_call *call, void *ctx);
+unsigned int trace_call_bpf_event(struct trace_event_file *file,
+				  struct ring_buffer_event *event, void *ctx);
 int perf_event_attach_bpf_prog(struct perf_event *event, struct bpf_prog *prog);
 void perf_event_detach_bpf_prog(struct perf_event *event);
 int perf_event_query_prog_array(struct perf_event *event, void __user *info);
