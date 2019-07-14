@@ -274,10 +274,11 @@ struct trace_event_call {
 	 */
 	int			flags; /* static flags of different events */
 
+	struct bpf_prog_array __rcu	*prog_array;
+
 #ifdef CONFIG_PERF_EVENTS
 	int				perf_refcount;
 	struct hlist_head __percpu	*perf_events;
-	struct bpf_prog_array __rcu	*prog_array;
 
 	int	(*perf_perm)(struct trace_event_call *,
 			     struct perf_event *);
