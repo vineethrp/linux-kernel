@@ -1100,11 +1100,34 @@ static DEFINE_MUTEX(bpf_event_mutex);
 
 #define BPF_TRACE_MAX_PROGS 64
 
-int perf_event_attach_bpf_prog(struct perf_event *event,
-			       struct bpf_prog *prog)
+int event_attach_bpf_prog(struct trace_event_call *tp_event,
+			  struct bpf_prog *prog)
 {
 	struct bpf_prog_array __rcu *old_array;
 	struct bpf_prog_array *new_array;
+	int ret;
+
+	lockdep_assert_held(&bpf_event_mutex);
+
+	old_array = tp_event->prog_array;
+	if (old_array &&
+	    bpf_prog_array_length(old_array) >= BPF_TRACE_MAX_PROGS)
+		return -E2BIG;
+
+	ret = bpf_prog_array_copy(old_array, NULL, prog, &new_array);
+	if (ret < 0)
+		return ret;
+
+	/* set the new array to event->tp_event and set event->prog */
+	rcu_assign_pointer(tp_event->prog_array, new_array);
+	bpf_prog_array_free(old_array);
+	return 0;
+}
+
+
+int perf_event_attach_bpf_prog(struct perf_event *event,
+			       struct bpf_prog *prog)
+{
 	int ret = -EEXIST;
 
 	/*
@@ -1121,52 +1144,51 @@ int perf_event_attach_bpf_prog(struct perf_event *event,
 	if (event->prog)
 		goto unlock;
 
-	old_array = event->tp_event->prog_array;
-	if (old_array &&
-	    bpf_prog_array_length(old_array) >= BPF_TRACE_MAX_PROGS) {
-		ret = -E2BIG;
-		goto unlock;
-	}
-
-	ret = bpf_prog_array_copy(old_array, NULL, prog, &new_array);
-	if (ret < 0)
+	ret = event_attach_bpf_prog(event->tp_event, prog);
+	if (ret)
 		goto unlock;
 
-	/* set the new array to event->tp_event and set event->prog */
 	event->prog = prog;
-	rcu_assign_pointer(event->tp_event->prog_array, new_array);
-	bpf_prog_array_free(old_array);
-
 unlock:
 	mutex_unlock(&bpf_event_mutex);
 	return ret;
 }
 
-void perf_event_detach_bpf_prog(struct perf_event *event)
+int event_detach_bpf_prog(struct trace_event_call *tp_event,
+			  struct bpf_prog *prog)
 {
 	struct bpf_prog_array __rcu *old_array;
 	struct bpf_prog_array *new_array;
 	int ret;
 
+	lockdep_assert_held(&bpf_event_mutex);
+
+	old_array = tp_event->prog_array;
+	ret = bpf_prog_array_copy(old_array, prog, NULL, &new_array);
+	if (ret == -ENOENT)
+		return ret;
+	if (ret < 0) {
+		bpf_prog_array_delete_safe(old_array, prog);
+	} else {
+		rcu_assign_pointer(tp_event->prog_array, new_array);
+		bpf_prog_array_free(old_array);
+	}
+
+	bpf_prog_put(prog);
+	return 0;
+}
+
+void perf_event_detach_bpf_prog(struct perf_event *event)
+{
 	mutex_lock(&bpf_event_mutex);
 
 	if (!event->prog)
 		goto unlock;
 
-	old_array = event->tp_event->prog_array;
-	ret = bpf_prog_array_copy(old_array, event->prog, NULL, &new_array);
-	if (ret == -ENOENT)
+	if (event_detach_bpf_prog(event->tp_event, event->prog))
 		goto unlock;
-	if (ret < 0) {
-		bpf_prog_array_delete_safe(old_array, event->prog);
-	} else {
-		rcu_assign_pointer(event->tp_event->prog_array, new_array);
-		bpf_prog_array_free(old_array);
-	}
 
-	bpf_prog_put(event->prog);
 	event->prog = NULL;
-
 unlock:
 	mutex_unlock(&bpf_event_mutex);
 }
