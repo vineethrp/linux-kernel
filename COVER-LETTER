@@ -1,0 +1,22 @@
+option-prefix PATCH v1
+Cc: minchan@kernel.org
+Cc: surenb@google.com
+Cc: dancol@google.com
+Cc: namhyung@google.com
+Cc: joaodias@google.com
+Cc: tkjos@google.com
+Cc: fmayer@google.com
+Cc: joelaf@google.com
+Cc: wvw@google.com
+Cc: linux-api@vger.kernel.org
+
+TODO: emphasize more on security and less on accuracy
+
+      GFP_ATOMIC issue from akpm
+
+      If page -walk doesn't get called for all PTEs, then the current !present
+	setting the idle bit is inconsistent with pages whos' pte doesn't even exist.
+	ust check this
+
+     Also check Konstantin's idea for marking swap pte:
+	http://lore.kernel.org/lkml/9cba9acb-9451-a53e-278d-92f7b66ae20b@yandex-team.ru
