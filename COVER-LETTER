@@ -1,0 +1,42 @@
+Cc: Alexey Dobriyan <adobriyan@gmail.com>
+Cc: Andrew Morton <akpm@linux-foundation.org>
+Cc: Brendan Gregg <bgregg@netflix.com>
+Cc: Christian Hansen <chansen3@cisco.com>
+Cc: dancol@google.com
+Cc: fmayer@google.com
+Cc: joelaf@google.com
+Cc: "Joel Fernandes (Google)" <joel@joelfernandes.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: Kees Cook <keescook@chromium.org>
+Cc: kernel-team@android.com
+Cc: linux-api@vger.kernel.org
+Cc: linux-doc@vger.kernel.org
+Cc: linux-fsdevel@vger.kernel.org
+Cc: linux-kernel@vger.kernel.org
+Cc: linux-mm@kvack.org
+Cc: Michal Hocko <mhocko@suse.com>
+Cc: Mike Rapoport <rppt@linux.ibm.com>
+Cc: minchan@kernel.org
+Cc: namhyung@google.com
+Cc: paulmck@linux.ibm.com
+Cc: Roman Gushchin <guro@fb.com>
+Cc: Stephen Rothwell <sfr@canb.auug.org.au>
+Cc: surenb@google.com
+Cc: tkjos@google.com
+Cc: Vladimir Davydov <vdavydov.dev@gmail.com>
+Cc: Vlastimil Babka <vbabka@suse.cz>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Borislav Petkov <bp@alien8.de>
+Cc: "H. Peter Anvin" <hpa@zytor.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: Catalin Marinas <catalin.marinas@arm.com> 
+-------
+option-prefix PATCH v5
+option-skip-get-maint
+TODO:If page -walk doesn't get called for all PTEs, then the current !present
+	setting the idle bit is inconsistent with pages whos' pte doesn't even exist.
+	ust check this
+
+     Also check Konstantin's idea for marking swap pte:
+	http://lore.kernel.org/lkml/9cba9acb-9451-a53e-278d-92f7b66ae20b@yandex-team.ru
