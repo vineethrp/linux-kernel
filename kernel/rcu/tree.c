@@ -2593,16 +2593,181 @@ void call_rcu(struct rcu_head *head, rcu_callback_t func)
 }
 EXPORT_SYMBOL_GPL(call_rcu);
 
+
+/* Maximum number of jiffies to wait before draining batch */
+#define KFREE_DRAIN_JIFFIES 200
+
+/*
+ * Maximum number of kfree(s) to batch, if limit is hit
+ * then RCU work is queued right away
+ */
+#define KFREE_MAX_BATCH	100
+
+struct kfree_rcu_cpu {
+	/* The work done to free objects after GP */
+	struct rcu_work rcu_work;
+
+	/* The list of objects being queued */
+	struct rcu_head *head;
+	int kfree_batch_len;
+
+	/* The list of objects pending a free */
+	struct rcu_head *head_free;
+
+	spinlock_t lock;
+
+	/* The work done to monitor whether objects need free */
+	struct delayed_work monitor_work;
+	bool monitor_todo;
+};
+static DEFINE_PER_CPU(struct kfree_rcu_cpu, krc);
+
+/* Free all heads after a grace period (worker function) */
+static void kfree_rcu_work(struct work_struct *work)
+{
+	unsigned long flags;
+	struct rcu_head *head, *next;
+	struct kfree_rcu_cpu *krc = container_of(to_rcu_work(work),
+					struct kfree_rcu_cpu, rcu_work);
+
+	spin_lock_irqsave(&krc->lock, flags);
+	head = krc->head_free;
+	krc->head_free = NULL;
+	spin_unlock_irqrestore(&krc->lock, flags);
+
+	/* The head must be detached and not referenced from anywhere */
+	for (; head; head = next) {
+		next = head->next;
+		head->next = NULL;
+		/* Could be possible to optimize with kfree_bulk in future */
+		__rcu_reclaim(rcu_state.name, head);
+	}
+}
+
+/*
+ * Schedule the kfree batch RCU work to run after GP.
+ *
+ * Either the batch reached its maximum size, or the monitor's
+ * time reached, either way schedule the batch work.
+ */
+static bool queue_kfree_rcu_work(struct kfree_rcu_cpu *krc)
+{
+	lockdep_assert_held(&krc->lock);
+
+	/*
+	 * Someone already drained, probably before the monitor's worker
+	 * thread ran. Just return to avoid useless work.
+	 */
+	if (!krc->head)
+		return true;
+
+	/*
+	 * If RCU batch work already in progress, we cannot
+	 * queue another one, just refuse the optimization.
+	 */
+	if (krc->head_free)
+		return false;
+
+	krc->head_free = krc->head;
+	krc->head = NULL;
+	krc->kfree_batch_len = 0;
+	INIT_RCU_WORK(&krc->rcu_work, kfree_rcu_work);
+	queue_rcu_work(system_wq, &krc->rcu_work);
+
+	return true;
+}
+
+static void kfree_rcu_drain_unlock(struct kfree_rcu_cpu *krc,
+				   unsigned long flags)
+{
+	struct rcu_head *head, *next;
+
+	/* It is time to do bulk reclaim after grace period */
+	krc->monitor_todo = false;
+	if (queue_kfree_rcu_work(krc)) {
+		spin_unlock_irqrestore(&krc->lock, flags);
+		return;
+	}
+
+	/*
+	 * Use non-batch regular call_rcu for kfree_rcu in case things are too
+	 * busy and batching of kfree_rcu could not be used.
+	 */
+	head = krc->head;
+	krc->head = NULL;
+	krc->kfree_batch_len = 0;
+	spin_unlock_irqrestore(&krc->lock, flags);
+
+	for (; head; head = next) {
+		next = head->next;
+		head->next = NULL;
+		__call_rcu(head, head->func, -1, 1);
+	}
+}
+
+/*
+ * If enough time has passed, the kfree batch has to be drained
+ * and the monitor takes care of that.
+ */
+static void kfree_rcu_monitor(struct work_struct *work)
+{
+	bool todo;
+	unsigned long flags;
+	struct kfree_rcu_cpu *krc = container_of(work, struct kfree_rcu_cpu,
+						 monitor_work.work);
+
+	/* It is time to do bulk reclaim after grace period */
+	spin_lock_irqsave(&krc->lock, flags);
+	todo = krc->monitor_todo;
+	krc->monitor_todo = false;
+	if (todo)
+		kfree_rcu_drain_unlock(krc, flags);
+	else
+		spin_unlock_irqrestore(&krc->lock, flags);
+
+}
+
+static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
+{
+	unsigned long flags;
+	struct kfree_rcu_cpu *this_krc;
+	bool monitor_todo;
+
+	this_krc = this_cpu_ptr(&krc);
+
+	spin_lock_irqsave(&this_krc->lock, flags);
+
+	/* Queue the kfree but don't yet schedule the batch */
+	head->func = func;
+	head->next = this_krc->head;
+	this_krc->head = head;
+	this_krc->kfree_batch_len++;
+
+	if (this_krc->kfree_batch_len == KFREE_MAX_BATCH) {
+		kfree_rcu_drain_unlock(this_krc, flags);
+		return;
+	}
+
+	/* Maximum has not been reached, schedule monitor for timely drain */
+	monitor_todo = this_krc->monitor_todo;
+	this_krc->monitor_todo = true;
+
+	if (!monitor_todo)
+		INIT_DELAYED_WORK(&this_krc->monitor_work, kfree_rcu_monitor);
+	spin_unlock_irqrestore(&this_krc->lock, flags);
+
+	if (!monitor_todo) {
+		schedule_delayed_work_on(smp_processor_id(),
+				&this_krc->monitor_work,  KFREE_DRAIN_JIFFIES);
+	}
+}
+
 /*
  * Queue an RCU callback for lazy invocation after a grace period.
- * This will likely be later named something like "call_rcu_lazy()",
- * but this change will require some way of tagging the lazy RCU
- * callbacks in the list of pending callbacks. Until then, this
- * function may only be called from __kfree_rcu().
  */
 void kfree_call_rcu(struct rcu_head *head, rcu_callback_t func)
 {
-	__call_rcu(head, func, -1, 1);
+	kfree_rcu_batch(head, func);
 }
 EXPORT_SYMBOL_GPL(kfree_call_rcu);
 
