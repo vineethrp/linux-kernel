@@ -266,6 +266,10 @@ struct page_idle_proc_priv {
 	unsigned long start_addr;
 	char *buffer;
 	int write;
+
+	/* Pre-allocate and provide nodes to add_page_idle_list() */
+	struct page_node *page_nodes;
+	int cur_page_node;
 };
 
 static void add_page_idle_list(struct page *page,
@@ -291,10 +295,7 @@ static void add_page_idle_list(struct page *page,
 	if (!page_get)
 		return;
 
-	pn = kmalloc(sizeof(*pn), GFP_ATOMIC);
-	if (!pn)
-		return;
-
+	pn = &(priv->page_nodes[priv->cur_page_node++]);
 	pn->page = page_get;
 	pn->addr = addr;
 	list_add(&pn->list, &idle_page_list);
@@ -379,6 +380,15 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 	priv.buffer = buffer;
 	priv.start_addr = start_addr;
 	priv.write = write;
+
+	priv.cur_page_node = 0;
+	priv.page_nodes = kzalloc(sizeof(struct page_node) * (end_frame - start_frame),
+				  GFP_KERNEL);
+	if (!priv.page_nodes) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
 	walk.private = &priv;
 	walk.mm = mm;
 
@@ -425,6 +435,7 @@ remove_page:
 		ret = copy_to_user(ubuff, buffer, count);
 
 	up_read(&mm->mmap_sem);
+	kfree(priv.page_nodes);
 out:
 	kfree(buffer);
 out_mmput:
