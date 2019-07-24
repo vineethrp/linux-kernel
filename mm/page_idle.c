@@ -26,8 +26,6 @@
  * page tracking. With such an indicator of user pages we can skip isolated
  * pages, but since there are not usually many of them, it will hardly affect
  * the overall result.
- *
- * This function tries to get a user memory page by pfn as described above.
  */
 static struct page *page_idle_get_page(struct page *page_in)
 {
@@ -49,6 +47,9 @@ static struct page *page_idle_get_page(struct page *page_in)
 	return page;
 }
 
+/*
+ * This function tries to get a user memory page by pfn as described above.
+ */
 static struct page *page_idle_get_page_pfn(unsigned long pfn)
 {
 
@@ -253,9 +254,6 @@ struct page_ext_operations page_idle_ops = {
 
 /*  page_idle tracking for /proc/<pid>/page_idle */
 
-static DEFINE_SPINLOCK(idle_page_list_lock);
-struct list_head idle_page_list;
-
 struct page_node {
 	struct page *page;
 	unsigned long addr;
@@ -270,6 +268,7 @@ struct page_idle_proc_priv {
 	/* Pre-allocate and provide nodes to add_page_idle_list() */
 	struct page_node *page_nodes;
 	int cur_page_node;
+	struct list_head *idle_page_list;
 };
 
 static void add_page_idle_list(struct page *page,
@@ -298,7 +297,7 @@ static void add_page_idle_list(struct page *page,
 	pn = &(priv->page_nodes[priv->cur_page_node++]);
 	pn->page = page_get;
 	pn->addr = addr;
-	list_add(&pn->list, &idle_page_list);
+	list_add(&pn->list, priv->idle_page_list);
 }
 
 static int pte_page_idle_proc_range(pmd_t *pmd, unsigned long addr,
@@ -352,6 +351,7 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 	struct page_node *cur, *next;
 	struct page_idle_proc_priv priv;
 	bool walk_error = false;
+	LIST_HEAD(idle_page_list);
 
 	if (!mm || !mmget_not_zero(mm))
 		return -EINVAL;
@@ -381,6 +381,7 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 	priv.start_addr = start_addr;
 	priv.write = write;
 
+	priv.idle_page_list = &idle_page_list;
 	priv.cur_page_node = 0;
 	priv.page_nodes = kzalloc(sizeof(struct page_node) * (end_frame - start_frame),
 				  GFP_KERNEL);
@@ -395,12 +396,10 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 	down_read(&mm->mmap_sem);
 
 	/*
-	 * Protects the idle_page_list which is needed because
-	 * walk_page_vma() holds ptlock which deadlocks with
-	 * page_idle_clear_pte_refs(). So we have to collect all
+	 * idle_page_list is needed because walk_page_vma() holds ptlock which
+	 * deadlocks with page_idle_clear_pte_refs(). So we have to collect all
 	 * pages first, and then call page_idle_clear_pte_refs().
 	 */
-	spin_lock(&idle_page_list_lock);
 	ret = walk_page_range(start_addr, end_addr, &walk);
 	if (ret)
 		walk_error = true;
@@ -429,7 +428,6 @@ remove_page:
 		list_del(&cur->list);
 		kfree(cur);
 	}
-	spin_unlock(&idle_page_list_lock);
 
 	if (!write && !walk_error)
 		ret = copy_to_user(ubuff, buffer, count);
@@ -461,8 +459,6 @@ ssize_t page_idle_proc_write(struct file *file, char __user *ubuff,
 static int __init page_idle_init(void)
 {
 	int err;
-
-	INIT_LIST_HEAD(&idle_page_list);
 
 	err = sysfs_create_group(mm_kobj, &page_idle_attr_group);
 	if (err) {
