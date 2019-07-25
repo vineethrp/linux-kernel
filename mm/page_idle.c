@@ -5,13 +5,15 @@
 #include <linux/sysfs.h>
 #include <linux/kobject.h>
 #include <linux/mm.h>
-#include <linux/mmzone.h>
-#include <linux/pagemap.h>
-#include <linux/rmap.h>
 #include <linux/mmu_notifier.h>
+#include <linux/mmzone.h>
 #include <linux/page_ext.h>
 #include <linux/page_idle.h>
+#include <linux/pagemap.h>
+#include <linux/rmap.h>
 #include <linux/sched/mm.h>
+#include <linux/swap.h>
+#include <linux/swapops.h>
 
 #define BITMAP_CHUNK_SIZE	sizeof(u64)
 #define BITMAP_CHUNK_BITS	(BITMAP_CHUNK_SIZE * BITS_PER_BYTE)
@@ -271,10 +273,14 @@ struct page_idle_proc_priv {
 	struct list_head *idle_page_list;
 };
 
+/*
+ * Add a page to the idle page list. page can be NULL if pte is
+ * from a swapped page.
+ */
 static void add_page_idle_list(struct page *page,
 			       unsigned long addr, struct mm_walk *walk)
 {
-	struct page *page_get;
+	struct page *page_get = NULL;
 	struct page_node *pn;
 	int bit;
 	unsigned long frames;
@@ -290,9 +296,11 @@ static void add_page_idle_list(struct page *page,
 			return;
 	}
 
-	page_get = page_idle_get_page(page);
-	if (!page_get)
-		return;
+	if (page) {
+		page_get = page_idle_get_page(page);
+		if (!page_get)
+			return;
+	}
 
 	pn = &(priv->page_nodes[priv->cur_page_node++]);
 	pn->page = page_get;
@@ -326,6 +334,15 @@ static int pte_page_idle_proc_range(pmd_t *pmd, unsigned long addr,
 
 	pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
 	for (; addr != end; pte++, addr += PAGE_SIZE) {
+		/*
+		 * We add swapped pages to the idle_page_list so that we can
+		 * reported to userspace that they are idle.
+		 */
+		if (is_swap_pte(*pte)) {
+			add_page_idle_list(NULL, addr, walk);
+			continue;
+		}
+
 		if (!pte_present(*pte))
 			continue;
 
@@ -413,10 +430,12 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 			goto remove_page;
 
 		if (write) {
-			page_idle_clear_pte_refs(page);
-			set_page_idle(page);
+			if (page) {
+				page_idle_clear_pte_refs(page);
+				set_page_idle(page);
+			}
 		} else {
-			if (page_really_idle(page)) {
+			if (!page || page_really_idle(page)) {
 				off = ((cur->addr) >> PAGE_SHIFT) - start_frame;
 				bit = off % BITMAP_CHUNK_BITS;
 				index = off / BITMAP_CHUNK_BITS;
@@ -424,7 +443,8 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 			}
 		}
 remove_page:
-		put_page(page);
+		if (page)
+			put_page(page);
 		list_del(&cur->list);
 		kfree(cur);
 	}
