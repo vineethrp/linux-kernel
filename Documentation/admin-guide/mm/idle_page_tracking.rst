@@ -85,12 +85,14 @@ frame numbers (VFN) is located at ``/proc/<pid>/page_idle``. It is a bitmap
 that follows the same semantics as ``/sys/kernel/mm/page_idle/bitmap``
 except that it uses virtual instead of physical frame numbers.
 
-This idle page tracking API can be simpler to use than physical address
-indexing, since the ``pagemap`` for a process does not need to be looked up to
-mark or read a page's idle bit. It is also more accurate than physical address
-indexing since in physical address indexing, address space changes can occur
-between reading the ``pagemap`` and reading the ``bitmap``. In virtual address
-indexing, the process's ``mmap_sem`` is held for the duration of the access.
+This idle page tracking API does not need deal with PFN so it does not require
+prior lookups of ``pagemap`` in order to find if page is idle or not. This is
+an advantage on some systems where looking up PFN is considered a security
+issue.  Also in some cases, this interface could be slightly more reliable to
+use than physical address indexing, since in physical address indexing, address
+space changes can occur between reading the ``pagemap`` and reading the
+``bitmap``, while in virtual address indexing, the process's ``mmap_sem`` is
+held for the duration of the access.
 
 To estimate the amount of pages that are not used by a workload one should:
 
