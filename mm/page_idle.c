@@ -365,7 +365,7 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 	unsigned long start_addr, end_addr, start_frame, end_frame;
 	struct mm_struct *mm = file->private_data;
 	struct mm_walk walk = { .pmd_entry = pte_page_idle_proc_range, };
-	struct page_node *cur, *next;
+	struct page_node *cur;
 	struct page_idle_proc_priv priv;
 	bool walk_error = false;
 	LIST_HEAD(idle_page_list);
@@ -400,8 +400,8 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 
 	priv.idle_page_list = &idle_page_list;
 	priv.cur_page_node = 0;
-	priv.page_nodes = kzalloc(sizeof(struct page_node) * (end_frame - start_frame),
-				  GFP_KERNEL);
+	priv.page_nodes = kzalloc(sizeof(struct page_node) *
+				  (end_frame - start_frame), GFP_KERNEL);
 	if (!priv.page_nodes) {
 		ret = -ENOMEM;
 		goto out;
@@ -421,7 +421,7 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 	if (ret)
 		walk_error = true;
 
-	list_for_each_entry_safe(cur, next, &idle_page_list, list) {
+	list_for_each_entry(cur, &idle_page_list, list) {
 		int bit, index;
 		unsigned long off;
 		struct page *page = cur->page;
@@ -445,8 +445,6 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 remove_page:
 		if (page)
 			put_page(page);
-		list_del(&cur->list);
-		kfree(cur);
 	}
 
 	if (!write && !walk_error)
