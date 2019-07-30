@@ -57,7 +57,7 @@
 #include <linux/jiffies.h>
 #include <linux/sched/isolation.h>
 #include "../time/tick-internal.h"
-
+#include <linux/proc_fs.h>
 #include "tree.h"
 #include "rcu.h"
 
@@ -2619,6 +2619,21 @@ struct kfree_rcu_cpu {
 	/* The work done to monitor whether objects need free */
 	struct delayed_work monitor_work;
 	bool monitor_todo;
+
+	/* Debug counters */
+	int n_kfree_total;	// How many kfree requested in total
+
+	int n_kfree_done;		// How many kfree request done
+	int n_kfree_done_rcu_work;	// How many kfree request done
+	int n_kfree_done_call_rcu_work;	// How many kfree request done
+
+	int n_batch_max;	// Maximum a batch ever reached
+
+	int n_batch_full;	// Number of times the batch over flowed
+				// while kfree requested
+
+	int n_rcu_busy;		// Num of times RCU busy (rcu_work pending)
+				// So we had to do inline call_rcu
 };
 static DEFINE_PER_CPU(struct kfree_rcu_cpu, krc);
 
@@ -2633,15 +2648,18 @@ static void kfree_rcu_work(struct work_struct *work)
 	spin_lock_irqsave(&krc->lock, flags);
 	head = krc->head_free;
 	krc->head_free = NULL;
-	spin_unlock_irqrestore(&krc->lock, flags);
 
 	/* The head must be detached and not referenced from anywhere */
 	for (; head; head = next) {
+		krc->n_kfree_done_rcu_work++;
+		krc->n_kfree_done++;
+
 		next = head->next;
 		head->next = NULL;
 		/* Could be possible to optimize with kfree_bulk in future */
 		__rcu_reclaim(rcu_state.name, head);
 	}
+	spin_unlock_irqrestore(&krc->lock, flags);
 }
 
 /*
@@ -2696,13 +2714,17 @@ static void kfree_rcu_drain_unlock(struct kfree_rcu_cpu *krc,
 	head = krc->head;
 	krc->head = NULL;
 	krc->kfree_batch_len = 0;
-	spin_unlock_irqrestore(&krc->lock, flags);
+
+	krc->n_rcu_busy++;
 
 	for (; head; head = next) {
+		krc->n_kfree_done_call_rcu_work++;
+		krc->n_kfree_done++;
 		next = head->next;
 		head->next = NULL;
 		__call_rcu(head, head->func, -1, 1);
 	}
+	spin_unlock_irqrestore(&krc->lock, flags);
 }
 
 /*
@@ -2736,6 +2758,7 @@ static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
 	this_krc = this_cpu_ptr(&krc);
 
 	spin_lock_irqsave(&this_krc->lock, flags);
+	this_krc->n_kfree_total++;
 
 	/* Queue the kfree but don't yet schedule the batch */
 	head->func = func;
@@ -2743,7 +2766,11 @@ static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
 	this_krc->head = head;
 	this_krc->kfree_batch_len++;
 
+	if (this_krc->n_batch_max < this_krc->kfree_batch_len)
+		this_krc->n_batch_max = this_krc->kfree_batch_len;
+
 	if (this_krc->kfree_batch_len == KFREE_MAX_BATCH) {
+		this_krc->n_batch_full++;
 		kfree_rcu_drain_unlock(this_krc, flags);
 		return;
 	}
@@ -3620,6 +3647,42 @@ static void __init rcu_dump_rcu_node_tree(void)
 struct workqueue_struct *rcu_gp_wq;
 struct workqueue_struct *rcu_par_gp_wq;
 
+#define KFREE_CTR(ctr_name)			\
+	total = 0;				\
+	for_each_online_cpu(cpu) {		\
+		krcp = per_cpu_ptr(&krc, cpu);	\
+		total += krcp->ctr_name;	\
+	}					\
+	seq_printf(m, "%30s\t%d\t", #ctr_name, total);\
+	for_each_online_cpu(cpu) {		\
+		krcp = per_cpu_ptr(&krc, cpu);	\
+		seq_printf(m, "%d\t", krcp->ctr_name);\
+	}					\
+	seq_printf(m, "\n");
+
+static int kfree_rcu_show(struct seq_file *m, void *v)
+{
+	int cpu;
+	int total = 0;
+	struct kfree_rcu_cpu *krcp;
+
+	seq_printf(m, "%30s\tTOTAL\t", "counter");
+	for_each_online_cpu(cpu) {
+		seq_printf(m, "CPU %d\t", cpu);
+	}
+	seq_printf(m, "\n");
+
+	KFREE_CTR(n_kfree_total)
+	KFREE_CTR(n_kfree_done)
+	KFREE_CTR(n_kfree_done_rcu_work)
+	KFREE_CTR(n_kfree_done_call_rcu_work)
+	KFREE_CTR(n_batch_max)
+	KFREE_CTR(n_batch_full)
+	KFREE_CTR(n_rcu_busy)
+
+	return 0;
+}
+
 void __init rcu_init(void)
 {
 	int cpu;
@@ -3652,8 +3715,14 @@ void __init rcu_init(void)
 	rcu_par_gp_wq = alloc_workqueue("rcu_par_gp", WQ_MEM_RECLAIM, 0);
 	WARN_ON(!rcu_par_gp_wq);
 	srcu_init();
+
 }
 
 #include "tree_stall.h"
 #include "tree_exp.h"
 #include "tree_plugin.h"
+void __init kfree_init(void)
+{
+	proc_create_single("kfree_rcu", 0, NULL, kfree_rcu_show);
+}
+late_initcall(kfree_init);
