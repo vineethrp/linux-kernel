@@ -2634,6 +2634,7 @@ struct kfree_rcu_cpu {
 
 	int n_rcu_busy;		// Num of times RCU busy (rcu_work pending)
 				// So we had to do inline call_rcu
+	int once;
 };
 static DEFINE_PER_CPU(struct kfree_rcu_cpu, krc);
 
@@ -2779,8 +2780,10 @@ static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
 	monitor_todo = this_krc->monitor_todo;
 	this_krc->monitor_todo = true;
 
-	if (!monitor_todo)
+	if (!monitor_todo && !this_krc->once) {
 		INIT_DELAYED_WORK(&this_krc->monitor_work, kfree_rcu_monitor);
+		this_krc->once = 1;
+	}
 	spin_unlock_irqrestore(&this_krc->lock, flags);
 
 	if (!monitor_todo) {
