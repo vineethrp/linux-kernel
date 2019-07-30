@@ -2595,13 +2595,13 @@ EXPORT_SYMBOL_GPL(call_rcu);
 
 
 /* Maximum number of jiffies to wait before draining batch */
-#define KFREE_DRAIN_JIFFIES 200
+#define KFREE_DRAIN_JIFFIES 50
 
 /*
  * Maximum number of kfree(s) to batch, if limit is hit
  * then RCU work is queued right away
  */
-#define KFREE_MAX_BATCH	100
+#define KFREE_MAX_BATCH	200000ULL
 
 struct kfree_rcu_cpu {
 	/* The work done to free objects after GP */
