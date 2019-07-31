@@ -86,6 +86,7 @@ torture_param(bool, gp_normal, false,
 	     "Use normal (non-expedited) GP wait primitives");
 torture_param(bool, gp_sync, false, "Use synchronous GP wait primitives");
 torture_param(int, irqreader, 1, "Allow RCU readers from irq handlers");
+torture_param(bool, kfree_rcu, 1, "Test grace-period forward progress");
 torture_param(int, n_barrier_cbs, 0,
 	     "# of callbacks/kthreads for barrier testing");
 torture_param(int, nfakewriters, 4, "Number of RCU fake writer threads");
@@ -2476,6 +2477,9 @@ rcu_torture_init(void)
 	if (firsterr)
 		goto unwind;
 	firsterr = rcu_torture_fwd_prog_init();
+	if (firsterr)
+		goto unwind;
+	firsterr = rcu_torture_kfree_init();
 	if (firsterr)
 		goto unwind;
 	firsterr = rcu_torture_barrier_init();
