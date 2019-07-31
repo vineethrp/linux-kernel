@@ -107,6 +107,14 @@ module_param(rcu_fanout_exact, bool, 0444);
 /* Increase (but not decrease) the RCU_FANOUT_LEAF at boot time. */
 static int rcu_fanout_leaf = RCU_FANOUT_LEAF;
 module_param(rcu_fanout_leaf, int, 0444);
+
+/* 
+ * Configure if we want to use kfree_rcu batching (debug only)
+ * Remove before submitting.
+ */
+static int use_kfree_rcu_batch = 1;
+module_param(use_kfree_rcu_batch, int, 0444);
+
 int rcu_num_lvls __read_mostly = RCU_NUM_LVLS;
 /* Number of rcu_nodes at specified level. */
 int num_rcu_lvl[] = NUM_RCU_LVL_INIT;
@@ -2797,7 +2805,11 @@ static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
  */
 void kfree_call_rcu(struct rcu_head *head, rcu_callback_t func)
 {
-	kfree_rcu_batch(head, func);
+	if (use_kfree_rcu_batch) {
+		kfree_rcu_batch(head, func);
+	} else {
+		__call_rcu(head, func, -1, 1);
+	}
 }
 EXPORT_SYMBOL_GPL(kfree_call_rcu);
 
