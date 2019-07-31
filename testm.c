@@ -26,7 +26,7 @@
 #define PAGE_BITMAP_ALIGN(addr)	\
       (void *)(((unsigned long)addr + PAGE_BITMAP_SIZE) & ~PAGE_BITMAP_MASK)
 
-#define TEST_MAP_SIZE (1024 * 1024 * 1024)
+#define TEST_MAP_SIZE (1 * 4 * 4096)
 
 long get_tns(struct timespec tp2, struct timespec tp)
 {
@@ -84,9 +84,13 @@ int check_range_idle(char *addr, unsigned long count)
       pfn = start_pfn + i;
       seek_bit = pfn % BITMAP_CHUNK_BITS;
 
+      printf("reading page idx %d\n", i);
+
       /* Re-read if we hit boundary, or it is first frame */
       if (seek_bit == 0 || i == 0) {
 	 seek_off = (pfn & ~BITMAP_CHUNK_MASK) / 8;
+      
+	 printf("reading full chunk at page idx %d\n", i);
 
 	 off = lseek(fd, seek_off, SEEK_SET);
 	 if (off == -1)
@@ -103,6 +107,7 @@ int check_range_idle(char *addr, unsigned long count)
       }
 
       if ((chunk & (1ULL << seek_bit)) == 0) {
+	 printf("chunk sees non zero bit at this position\n");
 	 close(fd);
 	 return 0;
       }
@@ -158,17 +163,22 @@ int mark_range_idle(char *addr, unsigned long count)
 
    clock_gettime(clk_id, &tp);
    for (int i = 0; i < num_pfns; i++) {
+
+      printf("marking page idx %d\n", i);
+
       pfn = start_pfn + i;
       seek_bit = pfn % BITMAP_CHUNK_BITS;
 
       chunk |= (1ULL << seek_bit);
 
       if ((seek_bit + 1) == BITMAP_CHUNK_BITS) {
+	 printf("writing full chunk at page idx %d\n", i);
 	 WRITE_CHUNK();
       }
    }
 
    if (chunk) {
+	 printf("writing full chunk at end\n");
 	 WRITE_CHUNK();
    }
 
@@ -283,7 +293,8 @@ int main()
 
    // SINGLE CHUNK TESTS
 
-   caddr = PAGE_BITMAP_ALIGN(addr + (TEST_MAP_SIZE/2));
+#if 0
+   caddr = PAGE_BITMAP_ALIGN(addr);
    printf("wci: %d\n", write_chunk_idle(caddr, 0xfefefefefefefefe));
 
    printf("Expecting: %llx\n",
@@ -294,16 +305,18 @@ int main()
 
    printf("rci: %d\n", read_chunk_idle(caddr, &chunk));
    printf("chunk read back: %llx\n", chunk);
+#endif
 
    printf("No access test\n");
-   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
-   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
+   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE));
+   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE));
 
    printf("Access test\n");
-   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
+   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE));
    addr[2] = 1;
-   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
+   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE));
 
+#if 0
    printf("No access test\n");
    printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
    printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
@@ -312,6 +325,6 @@ int main()
    printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
    addr[2] = 1;
    printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
- 
+#endif
    return 0;
 }
