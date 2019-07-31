@@ -26,7 +26,7 @@
 #define PAGE_BITMAP_ALIGN(addr)	\
       (void *)(((unsigned long)addr + PAGE_BITMAP_SIZE) & ~PAGE_BITMAP_MASK)
 
-#define TEST_MAP_SIZE (1024 * 1024 * 1024)
+#define TEST_MAP_SIZE (1024 * 1024 * 420)
 
 long get_tns(struct timespec tp2, struct timespec tp)
 {
@@ -49,8 +49,7 @@ char *prepare_map(void)
 	if (addr == MAP_FAILED)
 		addr = NULL;
 
-	memset(addr, 0xfe, TEST_MAP_SIZE);
-	mlock(addr, TEST_MAP_SIZE);
+	// mlock(addr, TEST_MAP_SIZE);
 
 	return addr;
 }
@@ -84,9 +83,13 @@ int check_range_idle(char *addr, unsigned long count)
       pfn = start_pfn + i;
       seek_bit = pfn % BITMAP_CHUNK_BITS;
 
+      printf("reading page idx %d\n", i);
+
       /* Re-read if we hit boundary, or it is first frame */
       if (seek_bit == 0 || i == 0) {
 	 seek_off = (pfn & ~BITMAP_CHUNK_MASK) / 8;
+      
+	 printf("reading full chunk at page idx %d\n", i);
 
 	 off = lseek(fd, seek_off, SEEK_SET);
 	 if (off == -1)
@@ -103,6 +106,7 @@ int check_range_idle(char *addr, unsigned long count)
       }
 
       if ((chunk & (1ULL << seek_bit)) == 0) {
+	 printf("chunk sees non zero bit at this position\n");
 	 close(fd);
 	 return 0;
       }
@@ -158,17 +162,22 @@ int mark_range_idle(char *addr, unsigned long count)
 
    clock_gettime(clk_id, &tp);
    for (int i = 0; i < num_pfns; i++) {
+
+      printf("marking page idx %d\n", i);
+
       pfn = start_pfn + i;
       seek_bit = pfn % BITMAP_CHUNK_BITS;
 
       chunk |= (1ULL << seek_bit);
 
       if ((seek_bit + 1) == BITMAP_CHUNK_BITS) {
+	 printf("writing full chunk at page idx %d\n", i);
 	 WRITE_CHUNK();
       }
    }
 
    if (chunk) {
+	 printf("writing full chunk at end\n");
 	 WRITE_CHUNK();
    }
 
@@ -273,45 +282,57 @@ void access_frame(char *b, int f)
    b[(f << PAGE_SHIFT) + (PAGE_SIZE >> 1)] = 1;
 }
 
+   // printf("vfn %lx\n", vfn);		\
+
+#define READ_PM				\
+   vfn = (unsigned long)caddr >> 12;	\
+   lseek(fd, vfn << 3, SEEK_SET);	\
+   read(fd, &pm, sizeof(pm));		\
+   printf("page map bytes: %lx\n", pm);
+
 int main()
 {
    char *addr = prepare_map();
-   char *caddr;
+   unsigned long pm = 0, vfn;
    uint64_t chunk;
+   char fpath[256];
+   char *caddr;
+   caddr = PAGE_BITMAP_ALIGN(addr);
+   sprintf(fpath, "/proc/%d/%s", getpid(), "pagemap");
+   printf("got addr %lx\n", addr);
+   int fd = open(fpath, O_RDONLY);
+   if (fd <= 0) {
+      return 0;
+   }
 
-   printf("pid %d %p\n", getpid(), addr);
+   memset(caddr, 0xfe, 1);
+   printf("The aligned addr is : %lx\n", caddr);
 
-   // SINGLE CHUNK TESTS
-
-   caddr = PAGE_BITMAP_ALIGN(addr + (TEST_MAP_SIZE/2));
-   printf("wci: %d\n", write_chunk_idle(caddr, 0xfefefefefefefefe));
-
-   printf("Expecting: %llx\n",
-	 0xfefefefefefefefe &  ~(((1ULL << 6)|(1ULL << 42))));
-
-   access_frame(caddr, 6);
-   access_frame(caddr, 42);
-
+// Comment this if out if you want to check if manual setting of swp pte below
+// works.
+#if 1
+   printf("wci: %d\n", write_chunk_idle(caddr, 0xffffffffffffffff));
    printf("rci: %d\n", read_chunk_idle(caddr, &chunk));
    printf("chunk read back: %llx\n", chunk);
+   printf("After idle mark\n");
+#endif
 
-   printf("No access test\n");
-   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
-   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
+   printf("First before full memset\n");
+   READ_PM;
 
-   printf("Access test\n");
-   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
-   addr[2] = 1;
-   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
+   memset(addr+128, 0xfe, TEST_MAP_SIZE-128);
 
-   printf("No access test\n");
-   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
-   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
+   printf("After full memset\n");
+   READ_PM;
 
-   printf("access test\n");
-   printf("mri %d\n", mark_range_idle(addr, TEST_MAP_SIZE / 2));
-   addr[2] = 1;
-   printf("is_idle: %d\n", check_range_idle(addr, TEST_MAP_SIZE / 2));
- 
+   printf("wci: %d\n", write_chunk_idle(caddr, 0xffffffffffffffff));
+   printf("After idle mark\n");
+   READ_PM;
+
+   caddr[0] = 1;
+   printf("after accesss..\n");
+   READ_PM;
+
+   while(1);
    return 0;
 }
