@@ -84,7 +84,7 @@ kfree_perf_thread(void *arg)
 	struct kfree_obj **alloc_ptrs;
 	u64 start_time, end_time;
 
-	pr_err("kfree_perf_thread task started");
+	pr_err("kfree_perf_thread task started loops %d", loops);
 	set_cpus_allowed_ptr(current, cpumask_of(me % nr_cpu_ids));
 	set_user_nice(current, MAX_NICE);
 	atomic_inc(&n_kfree_perf_thread_started);
