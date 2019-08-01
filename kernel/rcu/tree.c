@@ -2764,9 +2764,10 @@ static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
 	struct kfree_rcu_cpu *this_krc;
 	bool monitor_todo;
 
+	local_irq_save(flags);
 	this_krc = this_cpu_ptr(&krc);
 
-	spin_lock_irqsave(&this_krc->lock, flags);
+	spin_lock(&this_krc->lock);
 	this_krc->n_kfree_total++;
 
 	/* Queue the kfree but don't yet schedule the batch */
@@ -2792,12 +2793,13 @@ static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
 		INIT_DELAYED_WORK(&this_krc->monitor_work, kfree_rcu_monitor);
 		this_krc->once = 1;
 	}
-	spin_unlock_irqrestore(&this_krc->lock, flags);
+	spin_unlock(&this_krc->lock);
 
 	if (!monitor_todo) {
 		schedule_delayed_work_on(smp_processor_id(),
 				&this_krc->monitor_work,  KFREE_DRAIN_JIFFIES);
 	}
+	local_irq_restore(flags);
 }
 
 /*
