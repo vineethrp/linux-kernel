@@ -1260,6 +1260,8 @@ struct pagemapread {
 #define PM_SOFT_DIRTY		BIT_ULL(55)
 #define PM_MMAP_EXCLUSIVE	BIT_ULL(56)
 #define PM_SWAP_PGIDLE		BIT_ULL(57)
+#define PM_PGIDLE		BIT_ULL(58)
+
 #define PM_FILE			BIT_ULL(61)
 #define PM_SWAP			BIT_ULL(62)
 #define PM_PRESENT		BIT_ULL(63)
@@ -1351,6 +1353,8 @@ static pagemap_entry_t pte_to_pagemap_entry(struct pagemapread *pm,
 			page = device_private_entry_to_page(entry);
 	}
 
+	if (page && page_is_idle(page))
+		flags |= PM_PGIDLE;
 	if (page && !PageAnon(page))
 		flags |= PM_FILE;
 	if (page && page_mapcount(page) == 1)
