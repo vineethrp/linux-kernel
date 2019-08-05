@@ -89,7 +89,7 @@ torture_param(int, writer_holdoff, 0, "Holdoff (us) between GPs, zero to disable
 
 static char *perf_type = "rcu";
 module_param(perf_type, charp, 0444);
-MODULE_PARM_DESC(perf_type, "Type of RCU to performance-test (rcu, rcu_bh, ...)");
+MODULE_PARM_DESC(perf_type, "Type of RCU to performance-test (rcu, rcu_bh, kfree,...)");
 
 static int nrealreaders;
 static int nrealwriters;
@@ -592,6 +592,181 @@ rcu_perf_shutdown(void *arg)
 	return -EINVAL;
 }
 
+/*
+ * kfree_rcu performance tests: Start a kfree_rcu loop on all CPUs for number
+ * of iterations and measure total time for all iterations to complete.
+ */
+
+torture_param(int, kfree_nthreads, -1, "Number of RCU reader threads");
+torture_param(int, kfree_alloc_num, 8000, "Number of allocations and frees done by a thread");
+torture_param(int, kfree_alloc_size, 16,  "Size of each allocation");
+torture_param(int, kfree_loops, 10, "Size of each allocation");
+torture_param(int, kfree_no_batch, 0, "Use the non-batching (slower) version of kfree_rcu");
+
+static struct task_struct **kfree_reader_tasks;
+static int kfree_nrealthreads;
+static atomic_t n_kfree_perf_thread_started;
+static atomic_t n_kfree_perf_thread_ended;
+
+#define call_rcu_kfree(ptr, rhf)					   \
+do {									   \
+	typeof (ptr) ___p = (ptr);					   \
+	__call_rcu(&((___p)->rhf), offsetof(typeof(*(ptr)), rhf), -1, 1);  \
+} while (0)
+
+#define KFREE_OBJ_BYTES 8
+
+struct kfree_obj
+{
+	char kfree_obj[KFREE_OBJ_BYTES];
+	struct rcu_head rh;
+};
+
+void kfree_call_rcu_nobatch(struct rcu_head *head, rcu_callback_t func);
+
+static int
+kfree_perf_thread(void *arg)
+{
+	int i, l = 0;
+	long me = (long)arg;
+	struct kfree_obj **alloc_ptrs;
+	u64 start_time, end_time;
+
+	VERBOSE_PERFOUT_STRING("kfree_perf_thread task started");
+	set_cpus_allowed_ptr(current, cpumask_of(me % nr_cpu_ids));
+	set_user_nice(current, MAX_NICE);
+	atomic_inc(&n_kfree_perf_thread_started);
+
+	alloc_ptrs = (struct kfree_obj **)kmalloc(sizeof(struct kfree_obj *) * kfree_alloc_num,
+						  GFP_KERNEL);
+	if (!alloc_ptrs) {
+		pr_err("alloc_ptrs allocation failure\n");
+		return -ENOMEM;
+	}
+
+	start_time = ktime_get_mono_fast_ns();
+	do {
+		for (i = 0; i < kfree_alloc_num; i++) {
+			alloc_ptrs[i] = kmalloc(sizeof(struct kfree_obj), GFP_KERNEL);
+			if (!alloc_ptrs[i]) {
+				pr_err("alloc_ptrs[i] allocation failure\n");
+				return -ENOMEM;
+			}
+		}
+
+		for (i = 0; i < kfree_alloc_num; i++) {
+			if (!kfree_no_batch) {
+				kfree_rcu(alloc_ptrs[i], rh);
+			} else {
+				rcu_callback_t cb;
+				cb = (rcu_callback_t)(unsigned long)offsetof(struct kfree_obj, rh);
+				kfree_call_rcu_nobatch(&(alloc_ptrs[i]->rh), cb);
+			}
+		}
+
+		schedule_timeout_uninterruptible(2);
+	} while (!torture_must_stop() && ++l < kfree_loops);
+
+	kfree(alloc_ptrs);
+
+	if (atomic_inc_return(&n_kfree_perf_thread_ended) >= kfree_nrealthreads) {
+		end_time = ktime_get_mono_fast_ns();
+		pr_alert("Total time taken by all kfree'ers: %llu ns, loops: %d\n",
+		       (unsigned long long)(end_time - start_time), kfree_loops);
+		if (shutdown) {
+			smp_mb(); /* Assign before wake. */
+			wake_up(&shutdown_wq);
+		}
+	}
+
+	torture_kthread_stopping("kfree_perf_thread");
+	return 0;
+}
+
+static void
+kfree_perf_cleanup(void)
+{
+	int i;
+
+	if (torture_cleanup_begin())
+		return;
+
+	if (kfree_reader_tasks) {
+		for (i = 0; i < kfree_nrealthreads; i++)
+			torture_stop_kthread(kfree_perf_thread,
+					     kfree_reader_tasks[i]);
+		kfree(kfree_reader_tasks);
+	}
+
+	torture_cleanup_end();
+}
+
+/*
+ * shutdown kthread.  Just waits to be awakened, then shuts down system.
+ */
+static int
+kfree_perf_shutdown(void *arg)
+{
+	do {
+		wait_event(shutdown_wq,
+			   atomic_read(&n_kfree_perf_thread_ended) >=
+			   kfree_nrealthreads);
+	} while (atomic_read(&n_kfree_perf_thread_ended) < kfree_nrealthreads);
+
+	smp_mb(); /* Wake before output. */
+
+	kfree_perf_cleanup();
+	kernel_power_off();
+	return -EINVAL;
+}
+
+static int __init
+kfree_perf_init(void)
+{
+	long i;
+	int firsterr = 0;
+
+	if (!torture_init_begin("kfree_perf", verbose))
+		return -EBUSY;
+
+	kfree_nrealthreads = compute_real(kfree_nthreads);
+	/* Start up the kthreads. */
+	if (shutdown) {
+		init_waitqueue_head(&shutdown_wq);
+		firsterr = torture_create_kthread(kfree_perf_shutdown, NULL,
+						  shutdown_task);
+		if (firsterr)
+			goto unwind;
+		schedule_timeout_uninterruptible(1);
+	}
+
+	kfree_reader_tasks = kcalloc(kfree_nrealthreads, sizeof(kfree_reader_tasks[0]),
+			       GFP_KERNEL);
+	if (kfree_reader_tasks == NULL) {
+		pr_err("out of memory");
+		firsterr = -ENOMEM;
+		goto unwind;
+	}
+
+	for (i = 0; i < kfree_nrealthreads; i++) {
+		firsterr = torture_create_kthread(kfree_perf_thread, (void *)i,
+						  kfree_reader_tasks[i]);
+		if (firsterr)
+			goto unwind;
+	}
+
+	while (atomic_read(&n_kfree_perf_thread_started) < kfree_nrealthreads)
+		schedule_timeout_uninterruptible(1);
+
+	torture_init_end();
+	return 0;
+
+unwind:
+	torture_init_end();
+	kfree_perf_cleanup();
+	return firsterr;
+}
+
 static int __init
 rcu_perf_init(void)
 {
@@ -600,6 +775,9 @@ rcu_perf_init(void)
 	static struct rcu_perf_ops *perf_ops[] = {
 		&rcu_ops, &srcu_ops, &srcud_ops, &tasks_ops,
 	};
+
+	if (strcmp(perf_type, "kfree") == 0)
+		return kfree_perf_init();
 
 	if (!torture_init_begin(perf_type, verbose))
 		return -EBUSY;
