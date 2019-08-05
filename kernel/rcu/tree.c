@@ -2807,13 +2807,19 @@ static void kfree_rcu_batch(struct rcu_head *head, rcu_callback_t func)
  */
 void kfree_call_rcu(struct rcu_head *head, rcu_callback_t func)
 {
-	if (use_kfree_rcu_batch) {
-		kfree_rcu_batch(head, func);
-	} else {
-		__call_rcu(head, func, -1, 1);
-	}
+	kfree_rcu_batch(head, func);
 }
 EXPORT_SYMBOL_GPL(kfree_call_rcu);
+
+/*
+ * The version of kfree_call_rcu that does not do batching of kfree_rcu()
+ * requests. To be used only for performance testing comparisons with
+ * kfree_rcu_batch().
+ */
+void kfree_call_rcu_nobatch(struct rcu_head *head, rcu_callback_t func)
+{
+	__call_rcu(head, func, -1, 1);
+}
 
 /*
  * During early boot, any blocking grace-period wait automatically
