@@ -712,6 +712,12 @@ static inline void ptep_modify_prot_commit(struct vm_area_struct *vma,
 #define arch_start_context_switch(prev)	do {} while (0)
 #endif
 
+#ifndef CONFIG_HAVE_ARCH_PTE_SWP_PGIDLE
+static inline pte_t pte_swp_mkpage_idle(pte_t pte) { return pte; }
+static inline int pte_swp_page_idle(pte_t pte) { return 0; }
+static inline pte_t pte_swp_clear_mkpage_idle(pte_t pte) { return pte; }
+#endif
+
 #ifdef CONFIG_HAVE_ARCH_SOFT_DIRTY
 #ifndef CONFIG_ARCH_ENABLE_THP_MIGRATION
 static inline pmd_t pmd_swp_mksoft_dirty(pmd_t pmd)

@@ -276,7 +276,7 @@ struct page_idle_proc_priv {
 };
 
 /*
- * Add page to list to be set as idle later.
+ * Set a page as idle or add it to a list to be set as idle later.
  */
 static void pte_page_idle_proc_add(struct page *page,
 			       unsigned long addr, struct mm_walk *walk)
@@ -303,6 +303,13 @@ static void pte_page_idle_proc_add(struct page *page,
 		page_get = page_idle_get_page(page);
 		if (!page_get)
 			return;
+	} else {
+		/* For swapped pages, set output bit as idle */
+		frames = (addr - priv->start_addr) >> PAGE_SHIFT;
+		bit = frames % BITMAP_CHUNK_BITS;
+		chunk = &chunk[frames / BITMAP_CHUNK_BITS];
+		*chunk |= (1 << bit);
+		return;
 	}
 
 	/*
@@ -323,6 +330,7 @@ static int pte_page_idle_proc_range(pmd_t *pmd, unsigned long addr,
 	spinlock_t *ptl;
 	struct page *page;
 	struct vm_area_struct *vma = walk->vma;
+	struct page_idle_proc_priv *priv = walk->private;
 
 	ptl = pmd_trans_huge_lock(pmd, vma);
 	if (ptl) {
@@ -341,6 +349,19 @@ static int pte_page_idle_proc_range(pmd_t *pmd, unsigned long addr,
 
 	pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
 	for (; addr != end; pte++, addr += PAGE_SIZE) {
+		/* For swap_pte handling, we use an idle bit in the swap pte. */
+		if (is_swap_pte(*pte)) {
+			if (priv->write) {
+				set_pte_at(walk->mm, addr, pte,
+					   pte_swp_mkpage_idle(*pte));
+			} else {
+				/* If swap pte has idle bit set, report it as idle */
+				if (pte_swp_page_idle(*pte))
+					pte_page_idle_proc_add(NULL, addr, walk);
+			}
+			continue;
+		}
+
 		if (!pte_present(*pte))
 			continue;
 
@@ -432,7 +453,8 @@ ssize_t page_idle_proc_generic(struct file *file, char __user *ubuff,
 				set_page_idle(page);
 			}
 		} else {
-			if (page_idle_pte_check(page)) {
+			/* If page is NULL, it was swapped out */
+			if (!page || page_idle_pte_check(page)) {
 				off = ((cur->addr) >> PAGE_SHIFT) - start_frame;
 				bit = off % BITMAP_CHUNK_BITS;
 				index = off / BITMAP_CHUNK_BITS;

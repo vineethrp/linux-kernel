@@ -575,6 +575,9 @@ config ARCH_WANT_HUGE_PMD_SHARE
 config HAVE_ARCH_SOFT_DIRTY
 	bool
 
+config HAVE_ARCH_PTE_SWP_PGIDLE
+	bool
+
 config HAVE_MOD_ARCH_SPECIFIC
 	bool
 	help
