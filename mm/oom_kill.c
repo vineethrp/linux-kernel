@@ -997,6 +997,7 @@ static void oom_kill_process(struct oom_control *oc, const char *message)
  */
 static void check_panic_on_oom(struct oom_control *oc)
 {
+	panic("oom");
 	if (likely(!sysctl_panic_on_oom))
 		return;
 	if (sysctl_panic_on_oom != 2) {
