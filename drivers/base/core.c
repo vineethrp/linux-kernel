@@ -99,7 +99,11 @@ void device_links_read_unlock(int not_used)
 
 int device_links_read_lock_held(void)
 {
-	return lock_is_held(&device_links_lock);
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	return lock_is_held(&(device_links_lock.dep_map));
+#else
+	return 1;
+#endif
 }
 #endif /* !CONFIG_SRCU */
 
