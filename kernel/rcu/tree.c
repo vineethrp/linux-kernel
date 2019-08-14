@@ -2688,28 +2688,38 @@ EXPORT_SYMBOL_GPL(call_rcu);
 
 /* Maximum number of jiffies to wait before draining a batch. */
 #define KFREE_DRAIN_JIFFIES (HZ / 50)
+#define KFREE_N_BATCHES 2
 
-/*
- * Maximum number of kfree(s) to batch, if this limit is hit then the batch of
- * kfree(s) is queued for freeing after a grace period, right away.
- */
-struct kfree_rcu_cpu {
+struct kfree_rcu_work {
 	/* The rcu_work node for queuing work with queue_rcu_work(). The work
 	 * is done after a grace period.
 	 */
 	struct rcu_work rcu_work;
-
-	/* The list of objects being queued in a batch but are not yet
-	 * scheduled to be freed.
-	 */
-	struct rcu_head *head;
 
 	/* The list of objects that have now left ->head and are queued for
 	 * freeing after a grace period.
 	 */
 	struct rcu_head *head_free;
 
-	/* Protect concurrent access to this structure. */
+	struct kfree_rcu_cpu *krcp;
+};
+static DEFINE_PER_CPU(__typeof__(struct kfree_rcu_work)[KFREE_N_BATCHES], krw);
+
+/*
+ * Maximum number of kfree(s) to batch, if this limit is hit then the batch of
+ * kfree(s) is queued for freeing after a grace period, right away.
+ */
+struct kfree_rcu_cpu {
+
+	/* The list of objects being queued in a batch but are not yet
+	 * scheduled to be freed.
+	 */
+	struct rcu_head *head;
+
+	/* Pointer to the per-cpu array of kfree_rcu_work structures */
+	struct kfree_rcu_work *krwp;
+
+	/* Protect concurrent access to this structure and kfree_rcu_work. */
 	spinlock_t lock;
 
 	/* The delayed work that flushes ->head to ->head_free incase ->head
@@ -2730,12 +2740,15 @@ static void kfree_rcu_work(struct work_struct *work)
 {
 	unsigned long flags;
 	struct rcu_head *head, *next;
-	struct kfree_rcu_cpu *krcp = container_of(to_rcu_work(work),
-					struct kfree_rcu_cpu, rcu_work);
+	struct kfree_rcu_work *krwp = container_of(to_rcu_work(work),
+					struct kfree_rcu_work, rcu_work);
+	struct kfree_rcu_cpu *krcp;
+
+	krcp = krwp->krcp;
 
 	spin_lock_irqsave(&krcp->lock, flags);
-	head = krcp->head_free;
-	krcp->head_free = NULL;
+	head = krwp->head_free;
+	krwp->head_free = NULL;
 	spin_unlock_irqrestore(&krcp->lock, flags);
 
 	/*
@@ -2758,19 +2771,29 @@ static void kfree_rcu_work(struct work_struct *work)
  */
 static inline bool queue_kfree_rcu_work(struct kfree_rcu_cpu *krcp)
 {
-	lockdep_assert_held(&krcp->lock);
+	int i = 0;
+	struct kfree_rcu_work *krwp = NULL;
 
-	/* If a previous RCU batch work is already in progress, we cannot queue
+	lockdep_assert_held(&krcp->lock);
+	while (i < KFREE_N_BATCHES) {
+		if (!krcp->krwp[i].head_free) {
+			krwp = &(krcp->krwp[i]);
+			break;
+		}
+		i++;
+	}
+
+	/* If both RCU batches are already in progress, we cannot queue
 	 * another one, just refuse the optimization and it will be retried
 	 * again in KFREE_DRAIN_JIFFIES time.
 	 */
-	if (krcp->head_free)
+	if (!krwp)
 		return false;
 
-	krcp->head_free = krcp->head;
+	krwp->head_free = krcp->head;
 	krcp->head = NULL;
-	INIT_RCU_WORK(&krcp->rcu_work, kfree_rcu_work);
-	queue_rcu_work(system_wq, &krcp->rcu_work);
+	INIT_RCU_WORK(&krwp->rcu_work, kfree_rcu_work);
+	queue_rcu_work(system_wq, &krwp->rcu_work);
 
 	return true;
 }
@@ -3736,8 +3759,13 @@ static void __init kfree_rcu_batch_init(void)
 
 	for_each_possible_cpu(cpu) {
 		struct kfree_rcu_cpu *krcp = per_cpu_ptr(&krc, cpu);
+		struct kfree_rcu_work *krwp = &(per_cpu(krw, cpu)[0]);
+		int i = KFREE_N_BATCHES;
 
 		spin_lock_init(&krcp->lock);
+		krcp->krwp = krwp;
+		while (i--)
+			krwp[i].krcp = krcp;
 		INIT_DELAYED_WORK(&krcp->monitor_work, kfree_rcu_monitor);
 	}
 }
