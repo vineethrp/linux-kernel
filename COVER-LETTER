@@ -1,0 +1,14 @@
+option-skip-get-maint
+option-prefix PATCH v4
+Cc: Rao Shoaib <rao.shoaib@oracle.com>
+Cc: max.byungchul.park@gmail.com
+Cc: byungchul.park@lge.com
+Cc: kernel-team@android.com
+Cc: kernel-team@lge.com
+Cc: Davidlohr Bueso <dave@stgolabs.net>
+Cc: Josh Triplett <josh@joshtriplett.org>
+Cc: Lai Jiangshan <jiangshanlai@gmail.com>
+Cc: Mathieu Desnoyers <mathieu.desnoyers@efficios.com>
+Cc: "Paul E. McKenney" <paulmck@linux.ibm.com>
+Cc: rcu@vger.kernel.org
+Cc: Steven Rostedt <rostedt@goodmis.org>
