@@ -851,6 +851,9 @@ static void tick_nohz_restart_sched_tick(struct tick_sched *ts, ktime_t now)
 	tick_nohz_restart(ts, now);
 }
 
+int rdp_nhq(void);
+int  rdp_uq(void);
+
 static void tick_nohz_full_update_tick(struct tick_sched *ts)
 {
 #ifdef CONFIG_NO_HZ_FULL
@@ -862,14 +865,18 @@ static void tick_nohz_full_update_tick(struct tick_sched *ts)
 	if (!ts->tick_stopped && ts->nohz_mode == NOHZ_MODE_INACTIVE)
 		return;
 
-	if (can_stop_full_tick(cpu, ts)) {
-		trace_printk("stopping sched-tick: need_heavy_qs=%d urgent_qs=%d\n", rdp_nhq(), rdp_uq());
-		trace_printk("stopping sched-tick: tick_dep_rcu=%d\n",
-				(atomic_read(&ts->tick_dep_mask) | TICK_DEP_MASK_RCU));
+	if (can_stop_full_tick(cpu, ts) && !rdp_nhq() && !rdp_uq()) {
+#if 0
+		trace_printk("stopping sched-tick: need_heavy_qs=%d urgent_qs=%d\n", );
+		trace_printk("stopping sched-tick: tick_dep_rcu=%d , ts %lu\n",
+				(atomic_read(&ts->tick_dep_mask) & TICK_DEP_MASK_RCU), (unsigned long)(&ts->tick_dep_mask));
+#endif
 		tick_nohz_stop_sched_tick(ts, cpu);
 	}
 	else if (ts->tick_stopped) {
+#if 0
 		trace_printk("restarting sched-tick\n");
+#endif
 		tick_nohz_restart_sched_tick(ts, ktime_get());
 	}
 #endif
