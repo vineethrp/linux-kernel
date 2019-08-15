@@ -867,10 +867,16 @@ static void tick_nohz_full_update_tick(struct tick_sched *ts)
 	if (!ts->tick_stopped && ts->nohz_mode == NOHZ_MODE_INACTIVE)
 		return;
 
-	if (can_stop_full_tick(cpu, ts))
+	if (can_stop_full_tick(cpu, ts)) {
+		trace_printk("stopping sched-tick: need_heavy_qs=%d urgent_qs=%d\n", rdp_nhq(), rdp_uq());
+		trace_printk("stopping sched-tick: tick_dep_rcu=%d\n",
+				(atomic_read(&ts->tick_dep_mask) | TICK_DEP_MASK_RCU));
 		tick_nohz_stop_sched_tick(ts, cpu);
-	else if (ts->tick_stopped)
+	}
+	else if (ts->tick_stopped) {
+		trace_printk("restarting sched-tick\n");
 		tick_nohz_restart_sched_tick(ts, ktime_get());
+	}
 #endif
 }
 

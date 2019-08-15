@@ -2259,6 +2259,7 @@ static void rcu_do_batch(struct rcu_data *rdp)
  */
 void rcu_sched_clock_irq(int user)
 {
+	if (smp_processor_id() == 3)
 	trace_printk("sched-tick\n");
 
 	trace_rcu_utilization(TPS("Start scheduler-tick"));
