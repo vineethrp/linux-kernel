@@ -2218,6 +2218,7 @@ void scheduler_ipi(void)
 	irq_enter();
 	sched_ttwu_pending();
 
+	trace_printk("sched-ipi enter\n");
 	/*
 	 * Check if someone kicked us for doing the nohz idle load balance.
 	 */

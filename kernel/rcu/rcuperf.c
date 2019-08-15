@@ -388,7 +388,7 @@ rcu_perf_writer(void *arg)
 	do {
 		i++;
 		cond_resched();
-	} while ((jiffies < jiffies_init + 5000) && !torture_must_stop());
+	} while ((jiffies < jiffies_init + 3000) && !torture_must_stop());
 
 	trace_printk("End of rcuperf test\n");
 	schedule_timeout_interruptible(10);
