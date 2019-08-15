@@ -365,17 +365,15 @@ rcu_perf_writer(void *arg)
 	u64 t;
 	u64 *wdp;
 	u64 *wdpp = writer_durations[me];
+	unsigned long jiffies_init;
 
 	VERBOSE_PERFOUT_STRING("rcu_perf_writer task started");
+	trace_printk("Start of rcuperf test\n");
 	WARN_ON(!wdpp);
-	set_cpus_allowed_ptr(current, cpumask_of(me % nr_cpu_ids));
+	set_cpus_allowed_ptr(current, cpumask_of(3));
 	sp.sched_priority = 1;
 	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
 
-	if (holdoff)
-		schedule_timeout_uninterruptible(holdoff * HZ);
-
-	t = ktime_get_mono_fast_ns();
 	if (atomic_inc_return(&n_rcu_perf_writer_started) >= nrealwriters) {
 		t_rcu_perf_writer_started = t;
 		if (gp_exp) {
@@ -386,80 +384,21 @@ rcu_perf_writer(void *arg)
 		}
 	}
 
+	jiffies_init = jiffies;
 	do {
-		if (writer_holdoff)
-			udelay(writer_holdoff);
-		wdp = &wdpp[i];
-		*wdp = ktime_get_mono_fast_ns();
-		if (gp_async) {
-retry:
-			if (!rhp)
-				rhp = kmalloc(sizeof(*rhp), GFP_KERNEL);
-			if (rhp && atomic_read(this_cpu_ptr(&n_async_inflight)) < gp_async_max) {
-				rcu_perf_writer_state = RTWS_ASYNC;
-				atomic_inc(this_cpu_ptr(&n_async_inflight));
-				cur_ops->async(rhp, rcu_perf_async_cb);
-				rhp = NULL;
-			} else if (!kthread_should_stop()) {
-				rcu_perf_writer_state = RTWS_BARRIER;
-				cur_ops->gp_barrier();
-				goto retry;
-			} else {
-				kfree(rhp); /* Because we are stopping. */
-			}
-		} else if (gp_exp) {
-			rcu_perf_writer_state = RTWS_EXP_SYNC;
-			cur_ops->exp_sync();
-		} else {
-			rcu_perf_writer_state = RTWS_SYNC;
-			cur_ops->sync();
-		}
-		rcu_perf_writer_state = RTWS_IDLE;
-		t = ktime_get_mono_fast_ns();
-		*wdp = t - *wdp;
-		i_max = i;
-		if (!started &&
-		    atomic_read(&n_rcu_perf_writer_started) >= nrealwriters)
-			started = true;
-		if (!done && i >= MIN_MEAS) {
-			done = true;
-			sp.sched_priority = 0;
-			sched_setscheduler_nocheck(current,
-						   SCHED_NORMAL, &sp);
-			pr_alert("%s%s rcu_perf_writer %ld has %d measurements\n",
-				 perf_type, PERF_FLAG, me, MIN_MEAS);
-			if (atomic_inc_return(&n_rcu_perf_writer_finished) >=
-			    nrealwriters) {
-				schedule_timeout_interruptible(10);
-				rcu_ftrace_dump(DUMP_ALL);
-				PERFOUT_STRING("Test complete");
-				t_rcu_perf_writer_finished = t;
-				if (gp_exp) {
-					b_rcu_perf_writer_finished =
-						cur_ops->exp_completed() / 2;
-				} else {
-					b_rcu_perf_writer_finished =
-						cur_ops->get_gp_seq();
-				}
-				if (shutdown) {
-					smp_mb(); /* Assign before wake. */
-					wake_up(&shutdown_wq);
-				}
-			}
-		}
-		if (done && !alldone &&
-		    atomic_read(&n_rcu_perf_writer_finished) >= nrealwriters)
-			alldone = true;
-		if (started && !alldone && i < MAX_MEAS - 1)
-			i++;
-		rcu_perf_wait_shutdown();
-	} while (!torture_must_stop());
-	if (gp_async) {
-		rcu_perf_writer_state = RTWS_BARRIER;
-		cur_ops->gp_barrier();
+		i++;
+		cond_resched();
+	} while ((jiffies < jiffies_init + 5000) && !torture_must_stop());
+
+	trace_printk("End of rcuperf test\n");
+	schedule_timeout_interruptible(10);
+	rcu_ftrace_dump(DUMP_ALL);
+	PERFOUT_STRING("Test complete");
+	if (shutdown) {
+		smp_mb(); /* Assign before wake. */
+		wake_up(&shutdown_wq);
 	}
-	rcu_perf_writer_state = RTWS_STOPPING;
-	writer_n_durations[me] = i_max;
+
 	torture_kthread_stopping("rcu_perf_writer");
 	return 0;
 }
@@ -624,7 +563,7 @@ rcu_perf_init(void)
 	if (cur_ops->init)
 		cur_ops->init();
 
-	nrealwriters = compute_real(nwriters);
+	nrealwriters = 1;
 	nrealreaders = compute_real(nreaders);
 	atomic_set(&n_rcu_perf_reader_started, 0);
 	atomic_set(&n_rcu_perf_writer_started, 0);
@@ -641,6 +580,8 @@ rcu_perf_init(void)
 			goto unwind;
 		schedule_timeout_uninterruptible(1);
 	}
+
+#if 0
 	reader_tasks = kcalloc(nrealreaders, sizeof(reader_tasks[0]),
 			       GFP_KERNEL);
 	if (reader_tasks == NULL) {
@@ -656,6 +597,7 @@ rcu_perf_init(void)
 	}
 	while (atomic_read(&n_rcu_perf_reader_started) < nrealreaders)
 		schedule_timeout_uninterruptible(1);
+#endif
 	writer_tasks = kcalloc(nrealwriters, sizeof(reader_tasks[0]),
 			       GFP_KERNEL);
 	writer_durations = kcalloc(nrealwriters, sizeof(*writer_durations),
