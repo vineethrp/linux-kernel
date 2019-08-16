@@ -1970,6 +1970,16 @@ rcu_report_unblock_qs_rnp(struct rcu_node *rnp, unsigned long flags)
 }
 
 /*
+ * Reset the per-cpu rdp hints when we report qs leaf node's lock must be held.
+ */
+static void rcu_reset_rdp_hints(struct rcu_data *rdp)
+{
+	rdp->core_needs_qs = false;
+	rdp->rcu_urgent_qs = false;
+	rdp->rcu_need_heavy_qs = false;
+}
+
+/*
  * Record a quiescent state for the specified CPU to that CPU's rcu_data
  * structure.  This must be called from the specified CPU.
  */
@@ -1999,7 +2009,8 @@ rcu_report_qs_rdp(int cpu, struct rcu_data *rdp)
 		return;
 	}
 	mask = rdp->grpmask;
-	rdp->core_needs_qs = false;
+	rcu_reset_rdp_hints(rdp);
+
 	if ((rnp->qsmask & mask) == 0) {
 		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 	} else {
@@ -2327,6 +2338,7 @@ static void force_qs_rnp(int (*f)(struct rcu_data *rdp))
 			if ((rnp->qsmask & bit) != 0) {
 				rdp = per_cpu_ptr(&rcu_data, cpu);
 				if (f(rdp)) {
+					rcu_reset_rdp_hints(rdp);
 					mask |= bit;
 					rcu_disable_tick_upon_qs(rdp);
 				}
@@ -3402,6 +3414,7 @@ void rcu_cpu_starting(unsigned int cpu)
 	rdp->rcu_onl_gp_seq = READ_ONCE(rcu_state.gp_seq);
 	rdp->rcu_onl_gp_flags = READ_ONCE(rcu_state.gp_flags);
 	if (rnp->qsmask & mask) { /* RCU waiting on incoming CPU? */
+		rcu_reset_rdp_hints(rdp);
 		rcu_disable_tick_upon_qs(rdp);
 		/* Report QS -after- changing ->qsmaskinitnext! */
 		rcu_report_qs_rnp(mask, rnp, rnp->gp_seq, flags);
