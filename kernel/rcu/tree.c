@@ -829,7 +829,7 @@ static __always_inline void rcu_nmi_enter_common(bool irq)
 		   !rdp->dynticks_nmi_nesting &&
 		   rdp->rcu_urgent_qs && !rdp->rcu_forced_tick) {
 		rdp->rcu_forced_tick = true;
-		tick_dep_set_cpu(rdp->cpu, TICK_DEP_MASK_RCU);
+		tick_dep_set_cpu(rdp->cpu, TICK_DEP_BIT_RCU);
 	}
 	trace_rcu_dyntick(incby == 1 ? TPS("Endirq") : TPS("++="),
 			  rdp->dynticks_nmi_nesting,
@@ -898,7 +898,7 @@ void rcu_irq_enter_irqson(void)
 void rcu_disable_tick_upon_qs(struct rcu_data *rdp)
 {
 	if (tick_nohz_full_cpu(rdp->cpu) && rdp->rcu_forced_tick) {
-		tick_dep_clear_cpu(rdp->cpu, TICK_DEP_MASK_RCU);
+		tick_dep_clear_cpu(rdp->cpu, TICK_DEP_BIT_RCU);
 		rdp->rcu_forced_tick = false;
 	}
 }
@@ -2123,8 +2123,9 @@ int rcutree_dead_cpu(unsigned int cpu)
 	do_nocb_deferred_wakeup(per_cpu_ptr(&rcu_data, cpu));
 
 	// Stop-machine done, so allow nohz_full to disable tick.
-	for_each_online_cpu(c)
-		tick_dep_clear_cpu(c, TICK_DEP_MASK_RCU);
+	for_each_online_cpu(c) {
+		tick_dep_clear_cpu(c, TICK_DEP_BIT_RCU);
+	}
 	return 0;
 }
 
@@ -2175,8 +2176,9 @@ static void rcu_do_batch(struct rcu_data *rdp)
 	rcu_nocb_unlock_irqrestore(rdp, flags);
 
 	/* Invoke callbacks. */
-	if (IS_ENABLED(CONFIG_NO_HZ_FULL))
-		tick_dep_set_task(current, TICK_DEP_MASK_RCU);
+	if (IS_ENABLED(CONFIG_NO_HZ_FULL)) {
+		tick_dep_set_task(current, TICK_DEP_BIT_RCU);
+	}
 	rhp = rcu_cblist_dequeue(&rcl);
 	for (; rhp; rhp = rcu_cblist_dequeue(&rcl)) {
 		debug_rcu_head_unqueue(rhp);
@@ -2243,8 +2245,9 @@ static void rcu_do_batch(struct rcu_data *rdp)
 	/* Re-invoke RCU core processing if there are callbacks remaining. */
 	if (!offloaded && rcu_segcblist_ready_cbs(&rdp->cblist))
 		invoke_rcu_core();
-	if (IS_ENABLED(CONFIG_NO_HZ_FULL))
-		tick_dep_clear_task(current, TICK_DEP_MASK_RCU);
+	if (IS_ENABLED(CONFIG_NO_HZ_FULL)) {
+		tick_dep_clear_task(current, TICK_DEP_BIT_RCU);
+	}
 }
 
 /*
@@ -3118,8 +3121,9 @@ int rcutree_online_cpu(unsigned int cpu)
 	rcutree_affinity_setting(cpu, -1);
 
 	// Stop-machine done, so allow nohz_full to disable tick.
-	for_each_online_cpu(c)
-		tick_dep_clear_cpu(c, TICK_DEP_MASK_RCU);
+	for_each_online_cpu(c) {
+		tick_dep_clear_cpu(c, TICK_DEP_BIT_RCU);
+	}
 	return 0;
 }
 
@@ -3143,8 +3147,9 @@ int rcutree_offline_cpu(unsigned int cpu)
 	rcutree_affinity_setting(cpu, cpu);
 
 	// nohz_full CPUs need the tick for stop-machine to work quickly
-	for_each_online_cpu(c)
-		tick_dep_set_cpu(c, TICK_DEP_MASK_RCU);
+	for_each_online_cpu(c) {
+		tick_dep_set_cpu(c, TICK_DEP_BIT_RCU);
+	}
 	return 0;
 }
 
