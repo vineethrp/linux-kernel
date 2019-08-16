@@ -216,6 +216,18 @@ static long rcu_get_n_cbs_cpu(int cpu)
 	return 0;
 }
 
+int rdp_nhq(void) {
+	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
+
+	return !!rdp->rcu_need_heavy_qs;
+}
+
+int  rdp_uq(void) {
+	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
+
+	return !!rdp->rcu_urgent_qs;
+}
+
 void rcu_softirq_qs(void)
 {
 	rcu_qs();
