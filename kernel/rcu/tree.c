@@ -802,6 +802,7 @@ static __always_inline void rcu_nmi_enter_common(bool irq)
 {
 	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
 	long incby = 2;
+	int dnn = rdp->dynticks_nmi_nesting;
 
 	/* Complain about underflow. */
 	WARN_ON_ONCE(rdp->dynticks_nmi_nesting < 0);
@@ -826,7 +827,7 @@ static __always_inline void rcu_nmi_enter_common(bool irq)
 
 		incby = 1;
 	} else if (tick_nohz_full_cpu(rdp->cpu) &&
-		   !rdp->dynticks_nmi_nesting &&
+		   !dnn &&
 		   rdp->rcu_urgent_qs && !rdp->rcu_forced_tick) {
 		rdp->rcu_forced_tick = true;
 		tick_dep_set_cpu(rdp->cpu, TICK_DEP_BIT_RCU);
