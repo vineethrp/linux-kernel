@@ -216,6 +216,18 @@ static long rcu_get_n_cbs_cpu(int cpu)
 	return 0;
 }
 
+int rdp_nhq(void) {
+	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
+
+	return !!rdp->rcu_need_heavy_qs;
+}
+
+int  rdp_uq(void) {
+	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
+
+	return !!rdp->rcu_urgent_qs;
+}
+
 void rcu_softirq_qs(void)
 {
 	rcu_qs();
@@ -1091,6 +1103,7 @@ static int rcu_implicit_dynticks_qs(struct rcu_data *rdp)
 	if (tick_nohz_full_cpu(rdp->cpu) &&
 		   time_after(jiffies,
 			      READ_ONCE(rdp->last_fqs_resched) + jtsq * 3)) {
+		trace_printk("Sending urgent resched to cpu %d\n", rdp->cpu);
 		WRITE_ONCE(*ruqp, true);
 		resched_cpu(rdp->cpu);
 		WRITE_ONCE(rdp->last_fqs_resched, jiffies);
@@ -2258,6 +2271,9 @@ static void rcu_do_batch(struct rcu_data *rdp)
  */
 void rcu_sched_clock_irq(int user)
 {
+	if (smp_processor_id() == 3)
+	trace_printk("sched-tick\n");
+
 	trace_rcu_utilization(TPS("Start scheduler-tick"));
 	raw_cpu_inc(rcu_data.ticks_this_gp);
 	/* The load-acquire pairs with the store-release setting to true. */
