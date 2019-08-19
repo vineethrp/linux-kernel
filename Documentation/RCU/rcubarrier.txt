@@ -75,7 +75,9 @@ a grace period to elapse, rcu_barrier() waits for all outstanding RCU
 callbacks to complete.  Please note that rcu_barrier() does -not- imply
 synchronize_rcu(), in particular, if there are no RCU callbacks queued
 anywhere, rcu_barrier() is within its rights to return immediately,
-without waiting for a grace period to elapse.
+without waiting for a grace period to elapse. Also, please note that
+rcu_barrier() is not obligated to wait for prior kfree_rcu() calls to
+finish reclaiming memory.
 
 Pseudo-code using rcu_barrier() is as follows:
 
