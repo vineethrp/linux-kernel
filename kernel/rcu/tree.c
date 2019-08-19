@@ -667,7 +667,7 @@ static __always_inline void rcu_nmi_exit_common(bool irq)
 		    rdp->dynticks_nmi_nesting == 2 &&
 		    rdp->rcu_urgent_qs && !rdp->rcu_forced_tick) {
 			rdp->rcu_forced_tick = true;
-			tick_dep_set_cpu(rdp->cpu, TICK_DEP_MASK_RCU);
+			tick_dep_set_cpu(rdp->cpu, TICK_DEP_BIT_RCU);
 		}
 		WRITE_ONCE(rdp->dynticks_nmi_nesting, /* No store tearing. */
 			   rdp->dynticks_nmi_nesting - 2);
