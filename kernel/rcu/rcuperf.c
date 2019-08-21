@@ -618,17 +618,12 @@ kfree_perf_thread(void *arg)
 {
 	int i, loop = 0;
 	long me = (long)arg;
-	struct kfree_obj **alloc_ptrs;
+	struct kfree_obj *alloc_ptr;
 	u64 start_time, end_time;
 
 	VERBOSE_PERFOUT_STRING("kfree_perf_thread task started");
 	set_cpus_allowed_ptr(current, cpumask_of(me % nr_cpu_ids));
 	set_user_nice(current, MAX_NICE);
-
-	alloc_ptrs = (struct kfree_obj **)kmalloc(sizeof(struct kfree_obj *) * kfree_alloc_num,
-						  GFP_KERNEL);
-	if (!alloc_ptrs)
-		return -ENOMEM;
 
 	start_time = ktime_get_mono_fast_ns();
 
@@ -646,19 +641,17 @@ kfree_perf_thread(void *arg)
 	 */
 	do {
 		for (i = 0; i < kfree_alloc_num; i++) {
-			alloc_ptrs[i] = kmalloc(sizeof(struct kfree_obj), GFP_KERNEL);
-			if (!alloc_ptrs[i])
+			alloc_ptr = kmalloc(sizeof(struct kfree_obj), GFP_KERNEL);
+			if (!alloc_ptr)
 				return -ENOMEM;
-		}
 
-		for (i = 0; i < kfree_alloc_num; i++) {
 			if (!kfree_no_batch) {
-				kfree_rcu(alloc_ptrs[i], rh);
+				kfree_rcu(alloc_ptr, rh);
 			} else {
 				rcu_callback_t cb;
 
 				cb = (rcu_callback_t)(unsigned long)offsetof(struct kfree_obj, rh);
-				kfree_call_rcu_nobatch(&(alloc_ptrs[i]->rh), cb);
+				kfree_call_rcu_nobatch(&(alloc_ptr->rh), cb);
 			}
 		}
 
@@ -682,7 +675,6 @@ kfree_perf_thread(void *arg)
 		}
 	}
 
-	kfree(alloc_ptrs);
 	torture_kthread_stopping("kfree_perf_thread");
 	return 0;
 }
