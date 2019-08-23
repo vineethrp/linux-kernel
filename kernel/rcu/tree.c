@@ -2758,6 +2758,7 @@ static void kfree_rcu_work(struct work_struct *work)
 	for (; head; head = next) {
 		next = head->next;
 		/* Could be possible to optimize with kfree_bulk in future */
+		debug_rcu_head_unqueue(head);
 		__rcu_reclaim(rcu_state.name, head);
 		cond_resched_tasks_rcu_qs();
 	}
@@ -2869,6 +2870,13 @@ void kfree_call_rcu(struct rcu_head *head, rcu_callback_t func)
 	 */
 	if (rcu_scheduler_active != RCU_SCHEDULER_RUNNING)
 		return kfree_call_rcu_nobatch(head, func);
+
+	if (debug_rcu_head_queue(head)) {
+		/* Probable double kfree_rcu() */
+		WARN_ONCE(1, "kfree_call_rcu(): Double-freed call. rcu_head %p\n",
+			  head);
+		return;
+	}
 
 	head->func = func;
 
