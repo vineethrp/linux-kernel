@@ -1308,8 +1308,6 @@ static void rcu_prepare_for_idle(void)
 
 static int rcu_idle_gp_delay = RCU_IDLE_GP_DELAY;
 module_param(rcu_idle_gp_delay, int, 0644);
-static int rcu_idle_lazy_gp_delay = RCU_IDLE_LAZY_GP_DELAY;
-module_param(rcu_idle_lazy_gp_delay, int, 0644);
 
 /*
  * Try to advance callbacks on the current CPU, but only if it has been
@@ -1374,25 +1372,19 @@ int rcu_needs_cpu(u64 basemono, u64 *nextevt)
 	}
 	rdp->last_accelerate = jiffies;
 
-	/* Request timer delay depending on laziness, and round. */
-	rdp->all_lazy = !rcu_segcblist_n_nonlazy_cbs(&rdp->cblist);
-	if (rdp->all_lazy) {
-		dj = round_jiffies(rcu_idle_lazy_gp_delay + jiffies) - jiffies;
-	} else {
-		dj = round_up(rcu_idle_gp_delay + jiffies,
-			       rcu_idle_gp_delay) - jiffies;
-	}
+	/* Request timer and round. */
+	dj = round_up(rcu_idle_gp_delay + jiffies,
+		      rcu_idle_gp_delay) - jiffies;
+
 	*nextevt = basemono + dj * TICK_NSEC;
 	return 0;
 }
 
 /*
- * Prepare a CPU for idle from an RCU perspective.  The first major task
- * is to sense whether nohz mode has been enabled or disabled via sysfs.
- * The second major task is to check to see if a non-lazy callback has
- * arrived at a CPU that previously had only lazy callbacks.  The third
- * major task is to accelerate (that is, assign grace-period numbers to)
- * any recently arrived callbacks.
+ * Prepare a CPU for idle from an RCU perspective.  The first major task is to
+ * sense whether nohz mode has been enabled or disabled via sysfs.  The second
+ * major task is to accelerate (that is, assign grace-period numbers to) any
+ * recently arrived callbacks.
  *
  * The caller must have disabled interrupts.
  */
@@ -1417,17 +1409,6 @@ static void rcu_prepare_for_idle(void)
 	}
 	if (!tne)
 		return;
-
-	/*
-	 * If a non-lazy callback arrived at a CPU having only lazy
-	 * callbacks, invoke RCU core for the side-effect of recalculating
-	 * idle duration on re-entry to idle.
-	 */
-	if (rdp->all_lazy && rcu_segcblist_n_nonlazy_cbs(&rdp->cblist)) {
-		rdp->all_lazy = false;
-		invoke_rcu_core();
-		return;
-	}
 
 	/*
 	 * If we have not yet accelerated this jiffy, accelerate all
@@ -1644,16 +1625,15 @@ static bool rcu_nocb_cpu_needs_barrier(int cpu)
 /*
  * Enqueue the specified string of rcu_head structures onto the specified
  * CPU's no-CBs lists.  The CPU is specified by rdp, the head of the
- * string by rhp, and the tail of the string by rhtp.  The non-lazy/lazy
- * counts are supplied by rhcount and rhcount_lazy.
+ * string by rhp, and the tail of the string by rhtp. The list's count
+ * is supplied by rhcount.
  *
  * If warranted, also wake up the kthread servicing this CPUs queues.
  */
 static void __call_rcu_nocb_enqueue(struct rcu_data *rdp,
 				    struct rcu_head *rhp,
 				    struct rcu_head **rhtp,
-				    int rhcount, int rhcount_lazy,
-				    unsigned long flags)
+				    int rhcount, unsigned long flags)
 {
 	int len;
 	struct rcu_head **old_rhpp;
@@ -1664,7 +1644,6 @@ static void __call_rcu_nocb_enqueue(struct rcu_data *rdp,
 	/* rcu_barrier() relies on ->nocb_q_count add before xchg. */
 	old_rhpp = xchg(&rdp->nocb_tail, rhtp);
 	WRITE_ONCE(*old_rhpp, rhp);
-	atomic_long_add(rhcount_lazy, &rdp->nocb_q_count_lazy);
 	smp_mb__after_atomic(); /* Store *old_rhpp before _wake test. */
 
 	/* If we are not being polled and there is a kthread, awaken it ... */
@@ -1713,20 +1692,18 @@ static void __call_rcu_nocb_enqueue(struct rcu_data *rdp,
  * "rcuo" kthread can find it.
  */
 static bool __call_rcu_nocb(struct rcu_data *rdp, struct rcu_head *rhp,
-			    bool lazy, unsigned long flags)
+			    unsigned long flags)
 {
 
 	if (!rcu_is_nocb_cpu(rdp->cpu))
 		return false;
-	__call_rcu_nocb_enqueue(rdp, rhp, &rhp->next, 1, lazy, flags);
+	__call_rcu_nocb_enqueue(rdp, rhp, &rhp->next, 1, flags);
 	if (__is_kfree_rcu_offset((unsigned long)rhp->func))
 		trace_rcu_kfree_callback(rcu_state.name, rhp,
 					 (unsigned long)rhp->func,
-					 -atomic_long_read(&rdp->nocb_q_count_lazy),
 					 -rcu_get_n_cbs_nocb_cpu(rdp));
 	else
 		trace_rcu_callback(rcu_state.name, rhp,
-				   -atomic_long_read(&rdp->nocb_q_count_lazy),
 				   -rcu_get_n_cbs_nocb_cpu(rdp));
 
 	/*
@@ -1756,7 +1733,7 @@ static bool __maybe_unused rcu_nocb_adopt_orphan_cbs(struct rcu_data *my_rdp,
 	__call_rcu_nocb_enqueue(my_rdp, rcu_segcblist_head(&rdp->cblist),
 				rcu_segcblist_tail(&rdp->cblist),
 				rcu_segcblist_n_cbs(&rdp->cblist),
-				rcu_segcblist_n_lazy_cbs(&rdp->cblist), flags);
+				flags);
 	rcu_segcblist_init(&rdp->cblist);
 	rcu_segcblist_disable(&rdp->cblist);
 	return true;
@@ -1922,7 +1899,7 @@ static void nocb_follower_wait(struct rcu_data *rdp)
  */
 static int rcu_nocb_kthread(void *arg)
 {
-	int c, cl;
+	int c;
 	unsigned long flags;
 	struct rcu_head *list;
 	struct rcu_head *next;
@@ -1950,9 +1927,8 @@ static int rcu_nocb_kthread(void *arg)
 
 		/* Each pass through the following loop invokes a callback. */
 		trace_rcu_batch_start(rcu_state.name,
-				      atomic_long_read(&rdp->nocb_q_count_lazy),
 				      rcu_get_n_cbs_nocb_cpu(rdp), -1);
-		c = cl = 0;
+		c = 0;
 		while (list) {
 			next = list->next;
 			/* Wait for enqueuing to complete, if needed. */
@@ -1966,8 +1942,7 @@ static int rcu_nocb_kthread(void *arg)
 			}
 			debug_rcu_head_unqueue(list);
 			local_bh_disable();
-			if (__rcu_reclaim(rcu_state.name, list))
-				cl++;
+			__rcu_reclaim(rcu_state.name, list);
 			c++;
 			local_bh_enable();
 			cond_resched_tasks_rcu_qs();
@@ -1976,7 +1951,6 @@ static int rcu_nocb_kthread(void *arg)
 		trace_rcu_batch_end(rcu_state.name, c, !!list, 0, 0, 1);
 		smp_mb__before_atomic();  /* _add after CB invocation. */
 		atomic_long_add(-c, &rdp->nocb_q_count);
-		atomic_long_add(-cl, &rdp->nocb_q_count_lazy);
 	}
 	return 0;
 }
@@ -2203,8 +2177,6 @@ static bool init_nocb_callback_list(struct rcu_data *rdp)
 		rdp->nocb_tail = rcu_segcblist_tail(&rdp->cblist);
 		atomic_long_set(&rdp->nocb_q_count,
 				rcu_segcblist_n_cbs(&rdp->cblist));
-		atomic_long_set(&rdp->nocb_q_count_lazy,
-				rcu_segcblist_n_lazy_cbs(&rdp->cblist));
 		rcu_segcblist_init(&rdp->cblist);
 	}
 	rcu_segcblist_disable(&rdp->cblist);

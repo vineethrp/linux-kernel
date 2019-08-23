@@ -195,13 +195,11 @@ static inline void debug_rcu_head_unqueue(struct rcu_head *head)
 #endif	/* #else !CONFIG_DEBUG_OBJECTS_RCU_HEAD */
 
 /*
- * Reclaim the specified callback, either by invoking it (non-lazy case)
- * or freeing it directly (lazy case).  Return true if lazy, false otherwise.
+ * Reclaim the specified callback.
  */
-static inline bool __rcu_reclaim(const char *rn, struct rcu_head *head)
+static inline void __rcu_reclaim(const char *rn, struct rcu_head *head)
 {
 	rcu_callback_t f;
-	unsigned long offset = (unsigned long)head->func;
 
 	rcu_lock_acquire(&rcu_callback_map);
 	trace_rcu_invoke_callback(rn, head);
@@ -211,7 +209,7 @@ static inline bool __rcu_reclaim(const char *rn, struct rcu_head *head)
 	f(head);
 
 	rcu_lock_release(&rcu_callback_map);
-	return false;
+	return;
 }
 
 #ifdef CONFIG_RCU_STALL_COMMON
