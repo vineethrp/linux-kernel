@@ -2676,10 +2676,18 @@ static void kfree_rcu_work(struct work_struct *work)
 	 * access is Ok.
 	 */
 	for (; head; head = next) {
+		unsigned long offset = (unsigned long)head->func;
+
 		next = head->next;
-		/* Could be possible to optimize with kfree_bulk in future */
+
 		debug_rcu_head_unqueue(head);
-		__rcu_reclaim(rcu_state.name, head);
+		rcu_lock_acquire(&rcu_callback_map);
+		trace_rcu_invoke_kfree_callback(rcu_state.name, head, offset);
+
+		/* Could be possible to optimize with kfree_bulk in future */
+		kfree((void *)head - offset);
+
+		rcu_lock_release(&rcu_callback_map);
 		cond_resched_tasks_rcu_qs();
 	}
 }
