@@ -81,7 +81,6 @@
 
 static DEFINE_PER_CPU_SHARED_ALIGNED(struct rcu_data, rcu_data) = {
 	.dynticks_nesting = 1,
-	.dynticks_nmi_nesting = 0,
 	.dynticks = ATOMIC_INIT(RCU_DYNTICK_CTRL_CTR),
 };
 struct rcu_state rcu_state = {
@@ -392,15 +391,9 @@ static int rcu_is_cpu_rrupt_from_idle(void)
 	/* Check for counter underflows */
 	RCU_LOCKDEP_WARN(__this_cpu_read(rcu_data.dynticks_nesting) < 0,
 			 "RCU dynticks_nesting counter underflow!");
-	RCU_LOCKDEP_WARN(__this_cpu_read(rcu_data.dynticks_nmi_nesting) <= 0,
-			 "RCU dynticks_nmi_nesting counter underflow/zero!");
 
-	/* Are we at first interrupt nesting level? */
-	if (__this_cpu_read(rcu_data.dynticks_nmi_nesting) != 1)
-		return false;
-
-	/* Does CPU appear to be idle from an RCU standpoint? */
-	return __this_cpu_read(rcu_data.dynticks_nesting) == 0;
+	/* Are we the outermost interrupt that arrived when RCU was idle? */
+	return __this_cpu_read(rcu_data.dynticks_nesting) == 1;
 }
 
 #define DEFAULT_RCU_BLIMIT 10     /* Maximum callbacks per rcu_do_batch ... */
@@ -564,11 +557,10 @@ static void rcu_eqs_enter(bool user)
 	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
 
 	/* Entering usermode/idle from interrupt is not handled. These would
-	 * mean usermode upcalls or idle entry happened from interrupts. But,
-	 * reset the counter if we warn.
+	 * mean usermode upcalls or idle exit happened from interrupts. Remove
+	 * the warning by 2020.
 	 */
-	if (WARN_ON_ONCE(rdp->dynticks_nmi_nesting != 0))
-		WRITE_ONCE(rdp->dynticks_nmi_nesting, 0);
+	WARN_ON_ONCE(in_interrupt());
 
 	WARN_ON_ONCE(IS_ENABLED(CONFIG_RCU_EQS_DEBUG) &&
 		     rdp->dynticks_nesting == 0);
@@ -627,9 +619,8 @@ void rcu_user_enter(void)
 
 /*
  * If we are returning from the outermost NMI handler that interrupted an
- * RCU-idle period, update rdp->dynticks and rdp->dynticks_nmi_nesting
- * to let the RCU grace-period handling know that the CPU is back to
- * being RCU-idle.
+ * RCU-idle period, update rdp->dynticks to let the RCU grace-period handling
+ * know that the CPU is back to being RCU-idle.
  *
  * If you add or remove a call to rcu_nmi_exit_common(), be sure to test
  * with CONFIG_RCU_EQS_DEBUG=y.
@@ -639,16 +630,13 @@ static __always_inline void rcu_nmi_exit_common(bool irq)
 	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
 
 	/*
-	 * Check for ->dynticks_nmi_nesting underflow and bad ->dynticks.
+	 * Check for ->dynticks_nesting underflow and bad ->dynticks.
 	 * (We are exiting an NMI handler, so RCU better be paying attention
 	 * to us!)
 	 */
 	WARN_ON_ONCE(rdp->dynticks_nesting <= 0);
-	WARN_ON_ONCE(rdp->dynticks_nmi_nesting <= 0);
 	WARN_ON_ONCE(rcu_dynticks_curr_cpu_in_eqs());
 
-	WRITE_ONCE(rdp->dynticks_nmi_nesting, /* No store tearing. */
-		   rdp->dynticks_nmi_nesting - 1);
 	/*
 	 * If the nesting level is not 1, the CPU wasn't RCU-idle, so
 	 * leave it in non-RCU-idle state.
@@ -750,11 +738,10 @@ static void rcu_eqs_exit(bool user)
 	WRITE_ONCE(rdp->dynticks_nesting, 1);
 
 	/* Exiting usermode/idle from interrupt is not handled. These would
-	 * mean usermode upcalls or idle exit happened from interrupts. But,
-	 * reset the counter if we warn.
+	 * mean usermode upcalls or idle exit happened from interrupts. Remove
+	 * the warning by 2020.
 	 */
-	if (WARN_ON_ONCE(rdp->dynticks_nmi_nesting != 0))
-		WRITE_ONCE(rdp->dynticks_nmi_nesting, 0);
+	WARN_ON_ONCE(in_interrupt());
 }
 
 /**
@@ -795,14 +782,13 @@ void rcu_user_exit(void)
  * rcu_nmi_enter_common - inform RCU of entry to NMI context
  * @irq: Is this call from rcu_irq_enter?
  *
- * If the CPU was idle from RCU's viewpoint, update rdp->dynticks and
- * rdp->dynticks_nmi_nesting to let the RCU grace-period handling know
- * that the CPU is active.  This implementation permits nested NMIs, as
- * long as the nesting level does not overflow an int.  (You will probably
- * run out of stack space first.)
+ * If the CPU was idle from RCU's viewpoint, update rdp->dynticks to let the
+ * RCU grace-period handling know that the CPU is active.  This implementation
+ * permits nested NMIs, as long as the nesting level does not overflow a long.
+ * (You will probably run out of stack space first.)
  *
- * If you add or remove a call to rcu_nmi_enter_common(), be sure to test
- * with CONFIG_RCU_EQS_DEBUG=y.
+ * If you add or remove a call to rcu_nmi_enter_common(), be sure to test with
+ * CONFIG_RCU_EQS_DEBUG=y.
  */
 static __always_inline void rcu_nmi_enter_common(bool irq)
 {
@@ -811,15 +797,16 @@ static __always_inline void rcu_nmi_enter_common(bool irq)
 
 	/* Complain about underflow. */
 	WARN_ON_ONCE(rdp->dynticks_nesting < 0);
-	WARN_ON_ONCE(rdp->dynticks_nmi_nesting < 0);
 
 	/*
 	 * If idle from RCU viewpoint, atomically increment ->dynticks
-	 * to mark non-idle and increment ->dynticks_nmi_nesting by one.
-	 * Otherwise, increment ->dynticks_nmi_nesting by two.  This means
-	 * if ->dynticks_nmi_nesting is equal to one, we are guaranteed
+	 * to mark non-idle and increment ->dynticks_nesting by one.
+	 * Otherwise, increment ->dynticks_nesting by two.  This means
+	 * if ->dynticks_nesting is equal to one, we are guaranteed
 	 * to be in the outermost NMI handler that interrupted an RCU-idle
-	 * period (observation due to Andy Lutomirski).
+	 * period (observation due to Andy Lutomirski). An exception
+	 * is if the interrupt arrived in kernel mode; in this case we would
+	 * be the outermost interrupt but still increment by 2 which is Ok.
 	 */
 	if (rcu_dynticks_curr_cpu_in_eqs()) {
 
@@ -832,8 +819,7 @@ static __always_inline void rcu_nmi_enter_common(bool irq)
 			rcu_cleanup_after_idle();
 
 		incby = 1;
-	} else if (tick_nohz_full_cpu(rdp->cpu) &&
-		   !rdp->dynticks_nmi_nesting && rdp->rcu_urgent_qs &&
+	} else if (tick_nohz_full_cpu(rdp->cpu) && rdp->rcu_urgent_qs &&
 		   !rdp->rcu_forced_tick) {
 		rdp->rcu_forced_tick = true;
 		tick_dep_set_cpu(rdp->cpu, TICK_DEP_BIT_RCU);
@@ -846,8 +832,6 @@ static __always_inline void rcu_nmi_enter_common(bool irq)
 	WRITE_ONCE(rdp->dynticks_nesting, /* Prevent store tearing. */
 		   rdp->dynticks_nesting + incby);
 
-	WRITE_ONCE(rdp->dynticks_nmi_nesting, /* Prevent store tearing. */
-		   rdp->dynticks_nmi_nesting + 1);
 	barrier();
 }
 
