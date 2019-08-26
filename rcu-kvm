@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# https://medium.com/@Drew_Stokes/bash-argument-parsing-54f3b81a6a8f
+PARAMS=""
+TRACE_RCU=0
+RCU_PERF=0
+TRACE_SCHED=0
+
+# Prevent make clean and reuse kernel builds, needs trust-make.
+# https://lore.kernel.org/lkml/20190510230742.GY3923@linux.ibm.com/
+
+while (( "$#" )); do
+  case "$1" in
+--trace-sched)
+      TRACE_SCHED=1
+      shift
+      continue
+      ;;
+--trace-rcu)
+      TRACE_RCU=1
+      shift
+      continue
+      ;;
+--rcuperf)
+      RCU_PERF=1
+      shift; continue
+      ;;
+--kvm-args)
+      KVM_ARGS="$KVM_ARGS $2"
+      shift 2
+      ;;
+--boot-args)
+      BOOT_ARGS="$2"
+      shift 2
+      ;;
+--prove-rcu)
+      KVM_ARGS="$KVM_ARGS --kconfig CONFIG_PROVE_RCU=y --kconfig CONFIG_PROVE_LOCKING=y"
+      shift; continue
+      ;;
+--) # end argument parsing
+      shift
+      break
+      ;;
+--*=) # unsupported flags
+      echo "Error: Unsupported flag $1" >&2
+      exit 1
+      ;;
+    *) # preserve positional arguments
+      PARAMS="$PARAMS $1"
+      shift
+      ;;
+  esac
+done
+# set positional arguments in their proper place
+eval set -- "$PARAMS"
+
+if [ $RCU_PERF -eq 1 ]; then
+	KVM_ARGS="$KVM_ARGS --torture rcuperf"
+fi
+
+if [ $TRACE_SCHED -eq 1 ]; then
+	BOOT_ARGS="$BOOT_ARGS ftrace_dump_on_oops"
+	TRACE_ARGS="$TRACE_ARGS sched:sched_switch"
+fi
+
+if [ $TRACE_RCU -eq 1 ]; then
+	TRACE_ARGS="$TRACE_ARGS rcu:rcu_grace_period"
+	BOOT_ARGS="$BOOT_ARGS ftrace_dump_on_oops"
+fi
+
+if [ ! -z "$TRACE_ARGS" ]; then
+  te=""
+  for t in $TRACE_ARGS; do
+    te="$te$t,"
+  done
+  BOOT_ARGS="$BOOT_ARGS trace_event=$te"
+fi
+
+tools/testing/selftests/rcutorture/bin/kvm.sh --qemu-args "-net nic,model=e1000" --bootargs "$BOOT_ARGS" --cpus 8 --duration 60 --kconfig 'CONFIG_RCU_EQS_DEBUG=y' --trust-make| tee /tmp/kvm.sh.log
+# TREE01 TREE02 TREE03 TREE04 SRCU-t SRCU-u 
