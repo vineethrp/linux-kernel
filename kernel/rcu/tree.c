@@ -2777,8 +2777,10 @@ static void kfree_rcu_work(struct work_struct *work)
 		rcu_lock_acquire(&rcu_callback_map);
 		trace_rcu_invoke_kfree_callback(rcu_state.name, head, offset);
 
-		/* Could be possible to optimize with kfree_bulk in future */
-		kfree((void *)head - offset);
+		if (!WARN_ON_ONCE(!__is_kfree_rcu_offset(offset))) {
+			/* Could be optimized with kfree_bulk() in future. */
+			kfree((void *)head - offset);
+		}
 
 		rcu_lock_release(&rcu_callback_map);
 		cond_resched_tasks_rcu_qs();
@@ -2857,16 +2859,6 @@ static void kfree_rcu_monitor(struct work_struct *work)
 }
 
 /*
- * This version of kfree_call_rcu does not do batching of kfree_rcu() requests.
- * Used only by rcuperf torture test for comparison with kfree_rcu_batch().
- */
-void kfree_call_rcu_nobatch(struct rcu_head *head, rcu_callback_t func)
-{
-	__call_rcu(head, func);
-}
-EXPORT_SYMBOL_GPL(kfree_call_rcu_nobatch);
-
-/*
  * Queue a request for lazy invocation of kfree() after a grace period.
  *
  * Each kfree_call_rcu() request is added to a batch. The batch will be drained
@@ -2884,12 +2876,6 @@ void kfree_call_rcu(struct rcu_head *head, rcu_callback_t func)
 {
 	unsigned long flags;
 	struct kfree_rcu_cpu *krcp;
-
-	/* kfree_call_rcu() batching requires timers to be up. If the scheduler
-	 * is not yet up, just skip batching and do the non-batched version.
-	 */
-	if (rcu_scheduler_active != RCU_SCHEDULER_RUNNING)
-		return kfree_call_rcu_nobatch(head, func);
 
 	if (debug_rcu_head_queue(head)) {
 		/* Probable double kfree_rcu() */
@@ -2909,8 +2895,15 @@ void kfree_call_rcu(struct rcu_head *head, rcu_callback_t func)
 	krcp->head = head;
 
 	/* Schedule monitor for timely drain after KFREE_DRAIN_JIFFIES. */
-	if (!xchg(&krcp->monitor_todo, true))
-		schedule_delayed_work(&krcp->monitor_work, KFREE_DRAIN_JIFFIES);
+	if (!xchg(&krcp->monitor_todo, true)) {
+		/* Scheduling the monitor requires scheduler/timers to be up,
+		 * if it is not, just skip it. An eventual kfree_rcu() will
+		 * kick it again.
+		 */
+		if (rcu_scheduler_active == RCU_SCHEDULER_RUNNING) {
+			schedule_delayed_work(&krcp->monitor_work, KFREE_DRAIN_JIFFIES);
+		}
+	}
 
 	spin_unlock(&krcp->lock);
 	local_irq_restore(flags);
