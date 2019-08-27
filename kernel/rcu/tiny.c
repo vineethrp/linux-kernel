@@ -73,6 +73,34 @@ void rcu_sched_clock_irq(int user)
 	}
 }
 
+void kfree(const void *);
+
+/*
+ * Reclaim the specified callback, either by invoking it (non-lazy case)
+ * or freeing it directly (lazy case).  Return true if lazy, false otherwise.
+ */
+static inline bool rcu_reclaim_tiny(struct rcu_head *head)
+{
+	rcu_callback_t f;
+	unsigned long offset = (unsigned long)head->func;
+
+	rcu_lock_acquire(&rcu_callback_map);
+	if (__is_kfree_rcu_offset(offset)) {
+		trace_rcu_invoke_kfree_callback("", head, offset);
+		kfree((void *)head - offset);
+		rcu_lock_release(&rcu_callback_map);
+		return true;
+	} else {
+		trace_rcu_invoke_callback("", head);
+		f = head->func;
+		WRITE_ONCE(head->func, (rcu_callback_t)0L);
+		f(head);
+		rcu_lock_release(&rcu_callback_map);
+		return false;
+	}
+}
+
+
 /* Invoke the RCU callbacks whose grace period has elapsed.  */
 static __latent_entropy void rcu_process_callbacks(struct softirq_action *unused)
 {
@@ -100,7 +128,7 @@ static __latent_entropy void rcu_process_callbacks(struct softirq_action *unused
 		prefetch(next);
 		debug_rcu_head_unqueue(list);
 		local_bh_disable();
-		__rcu_reclaim("", list);
+		rcu_reclaim_tiny(list);
 		local_bh_enable();
 		list = next;
 	}
