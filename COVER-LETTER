@@ -1,0 +1,15 @@
+Hi,
+
+This is a series on top of the patch "rcu/tree: Add basic support for kfree_rcu() batching".
+
+Link: http://lore.kernel.org/r/20190814160411.58591-1-joel@joelfernandes.org
+
+It adds performance tests, some clean ups and removal of "lazy" RCU callbacks.
+
+Now that kfree_rcu() is handled separately from call_rcu(), we also get rid of
+kfree "lazy" handling from tree RCU as suggested by Paul which will be unused.
+This also results in a nice negative delta as well.
+
+option-subject kfree_rcu() additions for -rcu
+CC: byungchul.park@lge.com 
+Cc: kernel-team@android.com
