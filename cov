@@ -1,0 +1,22 @@
+Hi,
+
+This is a series on top of the patch "rcu/tree: Add basic support for kfree_rcu() batching".
+
+It adds performance tests, some clean ups and removal of "lazy" RCU callbacks.
+
+Now that kfree_rcu() is handled separately from call_rcu(), we also get rid of
+kfree "lazy" handling from tree RCU as suggested by Paul which will be unused.
+
+Based on patch:
+Link: http://lore.kernel.org/r/20190814160411.58591-1-joel@joelfernandes.org
+
+option-subject kfree_rcu() additions for -rcu
+option-prefix PATCH v2 -rcu dev
+CC: byungchul.park@lge.com 
+
+v1 series:
+	https://lkml.org/lkml/2019/8/27/1315
+	https://lore.kernel.org/patchwork/project/lkml/list/?series=408218
+
+To: a@b.com
+To: b@c.com
