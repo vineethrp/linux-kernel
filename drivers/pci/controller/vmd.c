@@ -718,7 +718,8 @@ static irqreturn_t vmd_irq(int irq, void *data)
 	int idx;
 
 	idx = srcu_read_lock(&irqs->srcu);
-	list_for_each_entry_rcu(vmdirq, &irqs->irq_list, node)
+	list_for_each_entry_rcu(vmdirq, &irqs->irq_list, node,
+				srcu_read_lock_held(&irqs->srcu))
 		generic_handle_irq(vmdirq->virq);
 	srcu_read_unlock(&irqs->srcu, idx);
 
