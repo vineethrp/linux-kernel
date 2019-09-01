@@ -845,7 +845,7 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun)
 		if (skip)
 			continue;
 
-		raw_spin_lock(&rq->lock);
+		raw_spin_lock_rcucheck(&rq->lock);
 		update_rq_clock(rq);
 
 		if (rt_rq->rt_time) {
@@ -2034,7 +2034,7 @@ void rto_push_irq_work_func(struct irq_work *work)
 	 * When it gets updated, a check is made if a push is possible.
 	 */
 	if (has_pushable_tasks(rq)) {
-		raw_spin_lock(&rq->lock);
+		raw_spin_lock_rcucheck(&rq->lock);
 		push_rt_tasks(rq);
 		raw_spin_unlock(&rq->lock);
 	}

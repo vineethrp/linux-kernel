@@ -277,12 +277,42 @@ NOKPROBE_SYMBOL(debug_lockdep_rcu_enabled);
 int rcu_read_lock_held(void)
 {
 	bool ret;
-
 	if (rcu_read_lock_held_common(&ret))
 		return ret;
+
 	return lock_is_held(&rcu_lock_map);
 }
 EXPORT_SYMBOL_GPL(rcu_read_lock_held);
+
+int rcu_read_lock_held_with_irqoff(void)
+{
+	bool ret;
+	bool irqoff = current->rcu_read_irqoff;
+
+#ifndef CONFIG_PREEMPT_RCU
+	return -1;
+#endif
+
+	/*
+	 * Ignore if scheduler is inactive, since it may be too early
+	 * Or,
+	 * if irqs were off at rcu_read_lock time, in this case we are
+	 * good. The issues are only when irqs were not off at lock time
+	 */
+	if (rcu_scheduler_active != RCU_SCHEDULER_INACTIVE)
+		return -1;
+
+	if (irqoff)
+		return -1;
+
+#ifdef CONFIG_PREEMPT
+	if (current->rcu_read_lock_nesting > 0)
+		return 1;
+#endif
+
+	return lock_is_held(&rcu_lock_map);
+}
+EXPORT_SYMBOL_GPL(rcu_read_lock_held_with_irqoff);
 
 /**
  * rcu_read_lock_bh_held() - might we be in RCU-bh read-side critical section?

@@ -1130,7 +1130,7 @@ void rt_mutex_adjust_pi(struct task_struct *task)
 	struct rt_mutex *next_lock;
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&task->pi_lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&task->pi_lock, flags);
 
 	waiter = task->pi_blocked_on;
 	if (!waiter || rt_mutex_waiter_equal(waiter, task_to_waiter(task))) {

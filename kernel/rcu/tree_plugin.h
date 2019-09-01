@@ -355,7 +355,14 @@ static int rcu_preempt_blocked_readers_cgp(struct rcu_node *rnp)
  */
 void __rcu_read_lock(void)
 {
+	unsigned long flags;
+
+	local_save_flags(flags);
+	current->rcu_read_irqoff = irqs_disabled_flags(flags);
 	current->rcu_read_lock_nesting++;
+
+	if (current->rcu_read_irqoff) trace_printk("rcu_read_irqoff\n");
+
 	if (IS_ENABLED(CONFIG_PROVE_LOCKING))
 		WARN_ON_ONCE(current->rcu_read_lock_nesting > RCU_NEST_PMAX);
 	barrier();  /* critical section after entry code. */
@@ -372,6 +379,8 @@ EXPORT_SYMBOL_GPL(__rcu_read_lock);
 void __rcu_read_unlock(void)
 {
 	struct task_struct *t = current;
+
+	t->rcu_read_irqoff = false;
 
 	if (t->rcu_read_lock_nesting != 1) {
 		--t->rcu_read_lock_nesting;

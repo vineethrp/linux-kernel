@@ -84,7 +84,7 @@ struct rq *__task_rq_lock(struct task_struct *p, struct rq_flags *rf)
 
 	for (;;) {
 		rq = task_rq(p);
-		raw_spin_lock(&rq->lock);
+		raw_spin_lock_rcucheck(&rq->lock);
 		if (likely(rq == task_rq(p) && !task_on_rq_migrating(p))) {
 			rq_pin_lock(rq, rf);
 			return rq;
@@ -106,9 +106,9 @@ struct rq *task_rq_lock(struct task_struct *p, struct rq_flags *rf)
 	struct rq *rq;
 
 	for (;;) {
-		raw_spin_lock_irqsave(&p->pi_lock, rf->flags);
+		raw_spin_lock_irqsave_rcucheck(&p->pi_lock, rf->flags);
 		rq = task_rq(p);
-		raw_spin_lock(&rq->lock);
+		raw_spin_lock_rcucheck(&rq->lock);
 		/*
 		 *	move_queued_task()		task_rq_lock()
 		 *
@@ -533,7 +533,7 @@ void resched_cpu(int cpu)
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&rq->lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&rq->lock, flags);
 	if (cpu_online(cpu) || cpu == smp_processor_id())
 		resched_curr(rq);
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
@@ -1438,7 +1438,7 @@ static int migration_cpu_stop(void *data)
 	 */
 	sched_ttwu_pending();
 
-	raw_spin_lock(&p->pi_lock);
+	raw_spin_lock_rcucheck(&p->pi_lock);
 	rq_lock(rq, &rf);
 	/*
 	 * If task_rq(p) != rq, it cannot be migrated here, because we're
@@ -2429,7 +2429,7 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	 * reordered with p->state check below. This pairs with mb() in
 	 * set_current_state() the waiting thread does.
 	 */
-	raw_spin_lock_irqsave(&p->pi_lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&p->pi_lock, flags);
 	smp_mb__after_spinlock();
 	if (!(p->state & state))
 		goto unlock;
@@ -2773,7 +2773,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 *
 	 * Silence PROVE_RCU.
 	 */
-	raw_spin_lock_irqsave(&p->pi_lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&p->pi_lock, flags);
 	/*
 	 * We're setting the CPU for the first time, we don't migrate,
 	 * so use __set_task_cpu().
@@ -2826,7 +2826,7 @@ void wake_up_new_task(struct task_struct *p)
 	struct rq_flags rf;
 	struct rq *rq;
 
-	raw_spin_lock_irqsave(&p->pi_lock, rf.flags);
+	raw_spin_lock_irqsave_rcucheck(&p->pi_lock, rf.flags);
 	p->state = TASK_RUNNING;
 #ifdef CONFIG_SMP
 	/*
@@ -3075,7 +3075,7 @@ static struct rq *finish_task_switch(struct task_struct *prev)
 	 *	schedule()
 	 *	  preempt_disable();			// 1
 	 *	  __schedule()
-	 *	    raw_spin_lock_irq(&rq->lock)	// 2
+	 *	    raw_spin_lock_irq_rcucheck(&rq->lock)	// 2
 	 *
 	 * Also, see FORK_PREEMPT_COUNT.
 	 */
@@ -3151,7 +3151,7 @@ static void __balance_callback(struct rq *rq)
 	void (*func)(struct rq *rq);
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&rq->lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&rq->lock, flags);
 	head = rq->balance_callback;
 	rq->balance_callback = NULL;
 	while (head) {
@@ -3367,7 +3367,7 @@ void sched_exec(void)
 	unsigned long flags;
 	int dest_cpu;
 
-	raw_spin_lock_irqsave(&p->pi_lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&p->pi_lock, flags);
 	dest_cpu = p->sched_class->select_task_rq(p, task_cpu(p), SD_BALANCE_EXEC, 0);
 	if (dest_cpu == smp_processor_id())
 		goto unlock;
@@ -5375,7 +5375,7 @@ long sched_getaffinity(pid_t pid, struct cpumask *mask)
 	if (retval)
 		goto out_unlock;
 
-	raw_spin_lock_irqsave(&p->pi_lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&p->pi_lock, flags);
 	cpumask_and(mask, &p->cpus_mask, cpu_active_mask);
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 
@@ -5871,8 +5871,8 @@ void init_idle(struct task_struct *idle, int cpu)
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
 
-	raw_spin_lock_irqsave(&idle->pi_lock, flags);
-	raw_spin_lock(&rq->lock);
+	raw_spin_lock_irqsave_rcucheck(&idle->pi_lock, flags);
+	raw_spin_lock_rcucheck(&rq->lock);
 
 	__sched_fork(0, idle);
 	idle->state = TASK_RUNNING;
@@ -6127,7 +6127,7 @@ static void migrate_tasks(struct rq *dead_rq, struct rq_flags *rf)
 		 * will not interfere. Also, stop-machine.
 		 */
 		rq_unlock(rq, rf);
-		raw_spin_lock(&next->pi_lock);
+		raw_spin_lock_rcucheck(&next->pi_lock);
 		rq_relock(rq, rf);
 
 		/*
@@ -6986,7 +6986,7 @@ static int cpu_cgroup_can_attach(struct cgroup_taskset *tset)
 		 * Serialize against wake_up_new_task() such that if its
 		 * running, we're sure to observe its full state.
 		 */
-		raw_spin_lock_irq(&task->pi_lock);
+		raw_spin_lock_irq_rcucheck(&task->pi_lock);
 		/*
 		 * Avoid calling sched_move_task() before wake_up_new_task()
 		 * has happened. This would lead to problems with PELT, due to

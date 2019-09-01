@@ -10302,7 +10302,7 @@ void online_fair_sched_group(struct task_group *tg)
 		rq = cpu_rq(i);
 		se = tg->se[i];
 
-		raw_spin_lock_irq(&rq->lock);
+		raw_spin_lock_irq_rcucheck(&rq->lock);
 		update_rq_clock(rq);
 		attach_entity_cfs_rq(se);
 		sync_throttle(tg, i);
@@ -10329,7 +10329,7 @@ void unregister_fair_sched_group(struct task_group *tg)
 
 		rq = cpu_rq(cpu);
 
-		raw_spin_lock_irqsave(&rq->lock, flags);
+		raw_spin_lock_irqsave_rcucheck(&rq->lock, flags);
 		list_del_leaf_cfs_rq(tg->cfs_rq[cpu]);
 		raw_spin_unlock_irqrestore(&rq->lock, flags);
 	}

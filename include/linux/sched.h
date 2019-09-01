@@ -115,6 +115,20 @@ struct task_group;
 					 (task->flags & PF_FROZEN) == 0 && \
 					 (task->state & TASK_NOLOAD) == 0)
 
+int rcu_read_lock_held_with_irqoff(void);
+
+#define raw_spin_lock_rcucheck(lock)				\
+	WARN_ON_ONCE(!in_interrupt() && (rcu_read_lock_held_with_irqoff() == 1));	\
+	raw_spin_lock(lock);
+
+#define raw_spin_lock_irq_rcucheck(lock)				\
+	WARN_ON_ONCE(!in_interrupt() && (rcu_read_lock_held_with_irqoff() == 1));	\
+	raw_spin_lock_irq(lock);
+
+#define raw_spin_lock_irqsave_rcucheck(lock, flags)	\
+	WARN_ON_ONCE(!in_interrupt() && (rcu_read_lock_held_with_irqoff() == 1));	\
+	raw_spin_lock_irqsave(lock, flags);
+
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 
 /*
@@ -142,7 +156,7 @@ struct task_group;
 	do {								\
 		unsigned long flags; /* may shadow */			\
 		WARN_ON_ONCE(!is_special_task_state(state_value));	\
-		raw_spin_lock_irqsave(&current->pi_lock, flags);	\
+		raw_spin_lock_irqsave_rcucheck(&current->pi_lock, flags);	\
 		current->task_state_change = _THIS_IP_;			\
 		current->state = (state_value);				\
 		raw_spin_unlock_irqrestore(&current->pi_lock, flags);	\
@@ -200,7 +214,7 @@ struct task_group;
 #define set_special_state(state_value)					\
 	do {								\
 		unsigned long flags; /* may shadow */			\
-		raw_spin_lock_irqsave(&current->pi_lock, flags);	\
+		raw_spin_lock_irqsave_rcucheck(&current->pi_lock, flags);	\
 		current->state = (state_value);				\
 		raw_spin_unlock_irqrestore(&current->pi_lock, flags);	\
 	} while (0)
@@ -720,6 +734,7 @@ struct task_struct {
 	struct list_head		rcu_node_entry;
 	struct rcu_node			*rcu_blocked_node;
 #endif /* #ifdef CONFIG_PREEMPT_RCU */
+	bool rcu_read_irqoff;
 
 #ifdef CONFIG_TASKS_RCU
 	unsigned long			rcu_tasks_nvcsw;
@@ -1290,7 +1305,6 @@ struct task_struct {
 	 * Do not put anything below here!
 	 */
 };
-
 static inline struct pid *task_pid(struct task_struct *task)
 {
 	return task->thread_pid;

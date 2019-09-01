@@ -395,7 +395,7 @@ dequeue_task_idle(struct rq *rq, struct task_struct *p, int flags)
 	raw_spin_unlock_irq(&rq->lock);
 	printk(KERN_ERR "bad: scheduling from the idle thread!\n");
 	dump_stack();
-	raw_spin_lock_irq(&rq->lock);
+	raw_spin_lock_irq_rcucheck(&rq->lock);
 }
 
 static void put_prev_task_idle(struct rq *rq, struct task_struct *prev)

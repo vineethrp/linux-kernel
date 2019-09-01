@@ -222,6 +222,7 @@ int rcu_read_lock_held(void);
 int rcu_read_lock_bh_held(void);
 int rcu_read_lock_sched_held(void);
 int rcu_read_lock_any_held(void);
+int rcu_read_lock_held_with_irqoff(void);
 
 #else /* #ifdef CONFIG_DEBUG_LOCK_ALLOC */
 

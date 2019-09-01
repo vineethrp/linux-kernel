@@ -3,6 +3,7 @@
 #include <linux/task_work.h>
 #include <linux/tracehook.h>
 
+#include "sched/sched.h"
 static struct callback_head work_exited; /* all we need is ->next == NULL */
 
 /**
@@ -67,7 +68,7 @@ task_work_cancel(struct task_struct *task, task_work_func_t func)
 	 * new entry before this work, we will find it again. Or
 	 * we raced with task_work_run(), *pprev == NULL/exited.
 	 */
-	raw_spin_lock_irqsave(&task->pi_lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&task->pi_lock, flags);
 	while ((work = READ_ONCE(*pprev))) {
 		if (work->func != func)
 			pprev = &work->next;
@@ -97,7 +98,7 @@ void task_work_run(void)
 		 * work->func() can do task_work_add(), do not set
 		 * work_exited unless the list is empty.
 		 */
-		raw_spin_lock_irq(&task->pi_lock);
+		raw_spin_lock_irq_rcucheck(&task->pi_lock);
 		do {
 			work = READ_ONCE(task->task_works);
 			head = !work && (task->flags & PF_EXITING) ?

@@ -24,6 +24,7 @@
 #include <linux/uaccess.h>
 #include <linux/numa.h>
 #include <trace/events/sched.h>
+#include "sched/sched.h"
 
 static DEFINE_SPINLOCK(kthread_create_lock);
 static LIST_HEAD(kthread_create_list);
@@ -402,7 +403,7 @@ static void __kthread_bind_mask(struct task_struct *p, const struct cpumask *mas
 	}
 
 	/* It's safe because the task is inactive. */
-	raw_spin_lock_irqsave(&p->pi_lock, flags);
+	raw_spin_lock_irqsave_rcucheck(&p->pi_lock, flags);
 	do_set_cpus_allowed(p, mask);
 	p->flags |= PF_NO_SETAFFINITY;
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
