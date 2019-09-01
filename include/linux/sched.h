@@ -721,6 +721,10 @@ struct task_struct {
 	struct rcu_node			*rcu_blocked_node;
 #endif /* #ifdef CONFIG_PREEMPT_RCU */
 
+#ifdef CONFIG_PROVE_RCU
+	bool rcu_read_irqoff;
+#endif
+
 #ifdef CONFIG_TASKS_RCU
 	unsigned long			rcu_tasks_nvcsw;
 	u8				rcu_tasks_holdout;

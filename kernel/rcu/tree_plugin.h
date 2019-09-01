@@ -348,6 +348,29 @@ static int rcu_preempt_blocked_readers_cgp(struct rcu_node *rnp)
 #define RCU_NEST_NMAX (-INT_MAX / 2)
 #define RCU_NEST_PMAX (INT_MAX / 2)
 
+static inline void __rcu_read_lock_check_sched_usage(void)
+{
+#ifdef CONFIG_PROVE_RCU
+	unsigned long flags;
+
+	local_save_flags(flags);
+	current->rcu_read_irqoff = irqs_disabled_flags(flags);
+#endif
+}
+
+static inline void __rcu_read_unlock_check_sched_usage(void)
+{
+	struct task_struct *t = current;
+
+#ifdef CONFIG_PROVE_RCU
+	if (t->rcu_read_irqoff == false) {
+		WARN_ON_ONCE(lockdep_is_held(&t->pi_lock));
+		WARN_ON_ONCE(lockdep_is_held(&this_cpu_ksoftirqd()->pi_lock));
+	}
+	t->rcu_read_irqoff = false;
+#endif
+}
+
 /*
  * Preemptible RCU implementation for rcu_read_lock().
  * Just increment ->rcu_read_lock_nesting, shared state will be updated
@@ -355,6 +378,9 @@ static int rcu_preempt_blocked_readers_cgp(struct rcu_node *rnp)
  */
 void __rcu_read_lock(void)
 {
+	if (current->rcu_read_lock_nesting == 0)
+		__rcu_read_lock_check_sched_usage();
+
 	current->rcu_read_lock_nesting++;
 	if (IS_ENABLED(CONFIG_PROVE_LOCKING))
 		WARN_ON_ONCE(current->rcu_read_lock_nesting > RCU_NEST_PMAX);
@@ -376,6 +402,7 @@ void __rcu_read_unlock(void)
 	if (t->rcu_read_lock_nesting != 1) {
 		--t->rcu_read_lock_nesting;
 	} else {
+		__rcu_read_unlock_check_sched_usage();
 		barrier();  /* critical section before exit code. */
 		t->rcu_read_lock_nesting = -RCU_NEST_BIAS;
 		barrier();  /* assign before ->rcu_read_unlock_special load */
