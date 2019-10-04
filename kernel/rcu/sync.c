@@ -10,7 +10,7 @@
 #include <linux/rcu_sync.h>
 #include <linux/sched.h>
 
-enum { GP_IDLE = 0, GP_ENTER, GP_PASSED, GP_EXIT, GP_REPLAY };
+enum { GP_IDLE = 0, GP_ENTER, GP_PASSED, GP_EXIT };
 
 #define	rss_lock	gp_wait.lock
 
@@ -85,13 +85,6 @@ static void rcu_sync_func(struct rcu_head *rhp)
 		 */
 		WRITE_ONCE(rsp->gp_state, GP_PASSED);
 		wake_up_locked(&rsp->gp_wait);
-	} else if (rsp->gp_state == GP_REPLAY) {
-		/*
-		 * A new rcu_sync_exit() has happened; requeue the callback to
-		 * catch a later GP.
-		 */
-		WRITE_ONCE(rsp->gp_state, GP_EXIT);
-		rcu_sync_call(rsp);
 	} else {
 		/*
 		 * We're at least a GP after the last rcu_sync_exit(); eveybody
@@ -167,16 +160,13 @@ void rcu_sync_enter(struct rcu_sync *rsp)
  */
 void rcu_sync_exit(struct rcu_sync *rsp)
 {
-	WARN_ON_ONCE(READ_ONCE(rsp->gp_state) == GP_IDLE);
-	WARN_ON_ONCE(READ_ONCE(rsp->gp_count) == 0);
+	WARN_ON_ONCE(READ_ONCE(rsp->gp_state) < GP_PASSED);
 
 	spin_lock_irq(&rsp->rss_lock);
 	if (!--rsp->gp_count) {
 		if (rsp->gp_state == GP_PASSED) {
 			WRITE_ONCE(rsp->gp_state, GP_EXIT);
 			rcu_sync_call(rsp);
-		} else if (rsp->gp_state == GP_EXIT) {
-			WRITE_ONCE(rsp->gp_state, GP_REPLAY);
 		}
 	}
 	spin_unlock_irq(&rsp->rss_lock);
