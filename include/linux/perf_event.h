@@ -721,6 +721,9 @@ struct perf_event {
 	struct perf_cgroup		*cgrp; /* cgroup event is attach to */
 #endif
 
+#ifdef CONFIG_SECURITY
+	void *security;
+#endif
 	struct list_head		sb_list;
 #endif /* CONFIG_PERF_EVENTS */
 };
