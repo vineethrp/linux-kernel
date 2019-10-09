@@ -1,0 +1,23 @@
+Alexei Starovoitov <ast@kernel.org>
+Arnaldo Carvalho de Melo <acme@kernel.org>
+bpf@vger.kernel.org
+Daniel Borkmann <daniel@iogearbox.net>
+Ingo Molnar <mingo@redhat.com>
+James Morris <jmorris@namei.org>
+jeffv@google.com
+Jiri Olsa <jolsa@redhat.com>
+"Joel Fernandes (Google)" <joel@joelfernandes.org>
+Kees Cook <keescook@chromium.org>
+kernel-team@android.com
+linux-kernel@vger.kernel.org
+linux-security-module@vger.kernel.org
+Matthew Garrett <matthewgarrett@google.com>
+Namhyung Kim <namhyung@kernel.org>
+Peter Zijlstra <peterz@infradead.org>
+primiano@google.com
+rsavitski@google.com
+selinux@vger.kernel.org
+Song Liu <songliubraving@fb.com>
+Steven Rostedt <rostedt@goodmis.org>
+x86@kernel.org (maintainer:X86 ARCHITECTURE (32-BIT AND 64-BIT))
+Yonghong Song <yhs@fb.com>
