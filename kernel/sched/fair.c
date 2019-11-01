@@ -6452,7 +6452,13 @@ static int select_idle_cpu(struct task_struct *p, struct sched_domain *sd, int t
 		if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
 			continue;
 		if (available_idle_cpu(cpu))
+#ifdef CONFIG_SCHED_CORE
+			if (sched_core_enabled(cpu_rq(cpu)) &&
+			    (p->core_cookie == cpu_rq(cpu)->core->core_cookie))
+				break;
+#else
 			break;
+#endif
 	}
 
 	time = local_clock() - time;
