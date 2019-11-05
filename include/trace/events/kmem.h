@@ -344,18 +344,21 @@ TRACE_EVENT(rss_stat,
 
 	TP_STRUCT__entry(
 		__field(unsigned int, mm_id)
+		__field(unsigned int, curr)
 		__field(int, member)
 		__field(long, size)
 	),
 
 	TP_fast_assign(
 		__entry->mm_id = mm_ptr_to_hash(mm);
+		__entry->curr = !!(current->mm == mm);
 		__entry->member = member;
 		__entry->size = (count << PAGE_SHIFT);
 	),
 
-	TP_printk("mm_id=%u member=%d size=%ldB",
+	TP_printk("mm_id=%u curr=%d member=%d size=%ldB",
 		__entry->mm_id,
+		__entry->curr,
 		__entry->member,
 		__entry->size)
 	);
