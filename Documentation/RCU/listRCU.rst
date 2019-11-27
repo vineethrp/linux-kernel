@@ -4,7 +4,7 @@ Using RCU to Protect Read-Mostly Linked Lists
 =============================================
 
 One of the best applications of RCU is to protect read-mostly linked lists
-("struct list_head" in list.h).  One big advantage of this approach
+(*struct list_head* in list.h).  One big advantage of this approach
 is that all of the required memory barriers are included for you in
 the list macros.  This document describes several applications of RCU,
 with the best fits first.
@@ -28,14 +28,14 @@ the 2 macros::
 		for (p = &init_task ; (p = next_task(p)) != &init_task ; )
 
 The code traversing the list of all processes typically looks like::
+
 	rcu_read_lock();
 	for_each_process(p) {
 		/* Do something with p */
 	}
 	rcu_read_unlock();
 
-Thes code (simplified) removing a process from the task lists is in
-release_task()::
+The code (simplified) for removing a process from the task list is::
 
 	void release_task(struct task_struct *p)
 	{
@@ -45,17 +45,17 @@ release_task()::
 		call_rcu(&p->rcu, delayed_put_task_struct);
 	}
 
-When a process exits, release_task() calls list_del_rcu(&p->tasks) to remove
-the task from the list of all tasks, under tasklist_lock writer lock
-protection. The tasklist_lock prevents concurrent list adds/removes from
+When a process exits, release_task() calls list_del_rcu(&p->tasks) under
+tasklist_lock writer lock protection, to remove the task from the list of
+all tasks. The tasklist_lock prevents concurrent list additions/removals from
 corrupting the list. Readers using for_each_process() are not protected with
-the tasklist_lock. To prevent readers from appearing to notice changes in the
-list pointers, the task_struct object is freed only after one more more grace
+the tasklist_lock. To prevent readers from noticing changes in the list
+pointers, the task_struct object is freed only after one or more grace
 periods elapse (with the help of call_rcu). This deferring of destruction
 ensures that any readers traversing the list will see valid p->tasks.next
-pointers and deletion/freeing can happen in parallel to traversal of the list.
-This pattern is also called an "existence lock" sometimes, since RCU makes sure
-the object exists in memory as long as readers exist, that are traversing.
+pointers and deletion/freeing can happen in parallel with traversal of the list.
+This pattern is also called an **existence lock**, since RCU makes sure
+the object exists in memory as long as readers exist.
 
 
 Example 2: Read-Side Action Taken Outside of Lock: No In-Place Updates
@@ -129,7 +129,7 @@ lock might be used as follows for deletion and insertion::
 	static inline int audit_del_rule(struct audit_rule *rule,
 					 struct list_head *list)
 	{
-		struct audit_entry  *e;
+		struct audit_entry *e;
 
 		write_lock(&auditsc_lock);
 		list_for_each_entry(e, list, list) {
@@ -162,9 +162,9 @@ Following are the RCU equivalents for these two functions::
 	static inline int audit_del_rule(struct audit_rule *rule,
 					 struct list_head *list)
 	{
-		struct audit_entry  *e;
+		struct audit_entry *e;
 
-		/* Do not use the _rcu iterator here, since this is the only
+		/* No need to use the _rcu iterator here, since this is the only
 		 * deletion routine. */
 		list_for_each_entry(e, list, list) {
 			if (!audit_compare_rule(rule, &e->rule)) {
@@ -189,11 +189,10 @@ Following are the RCU equivalents for these two functions::
 	}
 
 Normally, the write_lock() and write_unlock() would be replaced by
-a spin_lock() and a spin_unlock(), but in this case, all callers hold
+a spin_lock() and a spin_unlock(). But in this case, all callers hold
 audit_filter_mutex, so no additional locking is required.  The auditsc_lock
 can therefore be eliminated, since use of RCU eliminates the need for
-writers to exclude readers.  Normally, the write_lock() calls would
-be converted into spin_lock() calls.
+writers to exclude readers.
 
 The list_del(), list_add(), and list_add_tail() primitives have been
 replaced by list_del_rcu(), list_add_rcu(), and list_add_tail_rcu().
@@ -210,7 +209,7 @@ Example 3: Handling In-Place Updates
 ------------------------------------
 
 The system-call auditing code does not update auditing rules in place.
-However, if it did, reader-writer-locked code to do so might look as
+However, if it did, the reader-writer-locked code to do so might look as
 follows (presumably, the field_count is only permitted to decrease,
 otherwise, the added fields would need to be filled in)::
 
@@ -219,8 +218,8 @@ otherwise, the added fields would need to be filled in)::
 					 __u32 newaction,
 					 __u32 newfield_count)
 	{
-		struct audit_entry  *e;
-		struct audit_newentry *ne;
+		struct audit_entry *e;
+		struct audit_entry *ne;
 
 		write_lock(&auditsc_lock);
 		/* Note: audit_filter_mutex held by caller. */
@@ -238,16 +237,16 @@ otherwise, the added fields would need to be filled in)::
 
 The RCU version creates a copy, updates the copy, then replaces the old
 entry with the newly updated entry.  This sequence of actions, allowing
-concurrent reads while doing a copy to perform an update, is what gives
-RCU ("read-copy update") its name.  The RCU code is as follows::
+concurrent reads while making a copy to perform an update, is what gives
+RCU (*read-copy update*) its name.  The RCU code is as follows::
 
 	static inline int audit_upd_rule(struct audit_rule *rule,
 					 struct list_head *list,
 					 __u32 newaction,
 					 __u32 newfield_count)
 	{
-		struct audit_entry  *e;
-		struct audit_newentry *ne;
+		struct audit_entry *e;
+		struct audit_entry *ne;
 
 		list_for_each_entry(e, list, list) {
 			if (!audit_compare_rule(rule, &e->rule)) {
@@ -265,13 +264,13 @@ RCU ("read-copy update") its name.  The RCU code is as follows::
 		return -EFAULT;		/* No matching rule */
 	}
 
-Again, this assumes that the caller holds audit_filter_mutex.  Normally,
-the reader-writer lock would become a spinlock in this sort of code.
+Again, this assumes that the caller holds audit_filter_mutex. Normally,
+the writer lock would become a spinlock in this sort of code.
 
-Another use of this pattern can be found in the openswitch driver's "connection
-tracking table" code (ct_limit_set()). The table holds connection tracking
+Another use of this pattern can be found in the openswitch driver's *connection
+tracking table* code in *ct_limit_set()*. The table holds connection tracking
 entries and has a limit on the maximum entries. There is one such table
-per-zone and hence one "limit" per zone. The zones are mapped to their limits
+per-zone and hence one *limit* per zone. The zones are mapped to their limits
 through a hashtable using an RCU-managed hlist for the hash chains. When a new
 limit is to be set, a new limit object is allocated and ct_limit_set() is
 called to replace the old limit object with the new one using
@@ -282,27 +281,28 @@ using kfree_rcu().
 Example 4: Eliminating Stale Data
 ---------------------------------
 
-The auditing exampes above tolerates stale data, as do most algorithms
+The auditing examples above tolerates stale data, as do most algorithms
 that are tracking external state.  Because there is a delay from the
 time the external state changes before Linux becomes aware of the change,
-additional RCU-induced staleness is normally not a problem.
+additional RCU-induced staleness is generally not a problem.
 
 However, there are many examples where stale data cannot be tolerated.
 One example in the Linux kernel is the System V IPC (see the ipc_lock()
-function in ipc/util.c).  This code checks a "deleted" flag under a
-per-entry spinlock, and, if the "deleted" flag is set, pretends that the
+function in ipc/util.c).  This code checks a *deleted* flag under a
+per-entry spinlock, and, if the *deleted* flag is set, pretends that the
 entry does not exist.  For this to be helpful, the search function must
-return holding the per-entry spinlock, as ipc_lock() does in fact do.
+return holding the per-entry lock, as ipc_lock() does in fact do.
 
 .. _quick_quiz:
 
-Quick Quiz:  Why does the search function need to return holding the
+Quick Quiz:
+	Why does the search function need to return holding the
 	per-entry lock for this deleted-flag technique to be helpful?
 
 :ref:`Answer to Quick Quiz <quick_quiz_answer>`
 
 If the system-call audit module were to ever need to reject stale data,
-one way to accomplish this would be to add a "deleted" flag and a "lock"
+one way to accomplish this would be to add a *deleted* flag and a *lock*
 spinlock to the audit_entry structure, and modify audit_filter_task()
 as follows::
 
@@ -334,15 +334,15 @@ update-in-place performed by audit_upd_rule().  For one thing,
 audit_upd_rule() would need additional memory barriers to ensure
 that the list_add_rcu() was really executed before the list_del_rcu().
 
-The audit_del_rule() function would need to set the "deleted"
+The audit_del_rule() function would need to set the *deleted*
 flag under the spinlock as follows::
 
 	static inline int audit_del_rule(struct audit_rule *rule,
 					 struct list_head *list)
 	{
-		struct audit_entry  *e;
+		struct audit_entry *e;
 
-		/* Do not need to use the _rcu iterator here, since this
+		/* No need to use the _rcu iterator here, since this
 		 * is the only deletion routine. */
 		list_for_each_entry(e, list, list) {
 			if (!audit_compare_rule(rule, &e->rule)) {
@@ -356,6 +356,8 @@ flag under the spinlock as follows::
 		}
 		return -EFAULT;		/* No matching rule */
 	}
+
+This too assumes that the caller holds audit_filter_mutex.
 
 
 EXAMPLE 5: Skipping Stale Objects
@@ -374,7 +376,7 @@ timerfd_setup_cancel::
 	{
 		spin_lock(&ctx->cancel_lock);
 		if ((ctx->clockid == CLOCK_REALTIME &&
-	    		(flags & TFD_TIMER_ABSTIME) && (flags & TFD_TIMER_CANCEL_ON_SET)) {
+		    (flags & TFD_TIMER_ABSTIME) && (flags & TFD_TIMER_CANCEL_ON_SET)) {
 			if (!ctx->might_cancel) {
 				ctx->might_cancel = true;
 				spin_lock(&cancel_lock);
@@ -445,7 +447,7 @@ the most amenable to use of RCU.  The simplest case is where entries are
 either added or deleted from the data structure (or atomically modified
 in place), but non-atomic in-place modifications can be handled by making
 a copy, updating the copy, then replacing the original with the copy.
-If stale data cannot be tolerated, then a "deleted" flag may be used
+If stale data cannot be tolerated, then a *deleted* flag may be used
 in conjunction with a per-entry spinlock in order to allow the search
 function to reject newly deleted data.
 
@@ -458,7 +460,7 @@ Answer to Quick Quiz:
 	If the search function drops the per-entry lock before returning,
 	then the caller will be processing stale data in any case.  If it
 	is really OK to be processing stale data, then you don't need a
-	"deleted" flag.  If processing stale data really is a problem,
+	*deleted* flag.  If processing stale data really is a problem,
 	then you need to hold the per-entry lock across all of the code
 	that uses the value that was returned.
 
