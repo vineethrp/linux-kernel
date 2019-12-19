@@ -12,6 +12,7 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
 #include <linux/err.h>
@@ -593,7 +594,7 @@ rcu_perf_shutdown(void *arg)
 
 torture_param(int, kfree_nthreads, -1, "Number of threads running loops of kfree_rcu().");
 torture_param(int, kfree_alloc_num, 8000, "Number of allocations and frees done in an iteration.");
-torture_param(int, kfree_loops, 10, "Number of loops doing kfree_alloc_num allocations and frees.");
+torture_param(int, kfree_loops, 20, "Number of loops doing kfree_alloc_num allocations and frees.");
 
 static struct task_struct **kfree_reader_tasks;
 static int kfree_nrealthreads;
@@ -616,14 +617,17 @@ DEFINE_KFREE_OBJ(32); // goes on kmalloc-64 slab
 DEFINE_KFREE_OBJ(64); // goes on kmalloc-96 slab
 DEFINE_KFREE_OBJ(96); // goes on kmalloc-128 slab
 
+long long mem_begin;
+
 static int
 kfree_perf_thread(void *arg)
 {
 	int i, loop = 0;
 	long me = (long)arg;
 	void *alloc_ptr;
-
 	u64 start_time, end_time;
+	long mem_samples = 0;
+	long long mem_during = 0;
 
 	VERBOSE_PERFOUT_STRING("kfree_perf_thread task started");
 	set_cpus_allowed_ptr(current, cpumask_of(me % nr_cpu_ids));
@@ -638,7 +642,17 @@ kfree_perf_thread(void *arg)
 			b_rcu_gp_test_started = cur_ops->get_gp_seq();
 	}
 
+	// Prevent "% 0" error below.
+	if (kfree_loops < 20)
+		kfree_loops = 20;
+
 	do {
+		// Start measuring only from when we are a little into the test.
+		if ((loop != 0) && (loop % (kfree_loops / 20) == 0)) {
+			mem_during = mem_during + si_mem_available();
+			mem_samples++;
+		}
+
 		for (i = 0; i < kfree_alloc_num; i++) {
 			int kfree_type = i % 4;
 
@@ -671,6 +685,8 @@ kfree_perf_thread(void *arg)
 		cond_resched();
 	} while (!torture_must_stop() && ++loop < kfree_loops);
 
+	mem_during = (mem_during / mem_samples);
+
 	if (atomic_inc_return(&n_kfree_perf_thread_ended) >= kfree_nrealthreads) {
 		end_time = ktime_get_mono_fast_ns();
 
@@ -679,9 +695,13 @@ kfree_perf_thread(void *arg)
 		else
 			b_rcu_gp_test_finished = cur_ops->get_gp_seq();
 
-		pr_alert("Total time taken by all kfree'ers: %llu ns, loops: %d, batches: %ld\n",
+		// The "memory footprint" field represents how much in-flight
+		// memory is allocated during the test and waiting to be freed.
+		pr_alert("Total time taken by all kfree'ers: %llu ns, loops: %d, batches: %ld, memory footprint: %lldMB\n",
 		       (unsigned long long)(end_time - start_time), kfree_loops,
-		       rcuperf_seq_diff(b_rcu_gp_test_finished, b_rcu_gp_test_started));
+		       rcuperf_seq_diff(b_rcu_gp_test_finished, b_rcu_gp_test_started),
+		       (mem_begin - mem_during) >> (20 - PAGE_SHIFT));
+
 		if (shutdown) {
 			smp_mb(); /* Assign before wake. */
 			wake_up(&shutdown_wq);
@@ -752,6 +772,8 @@ kfree_perf_init(void)
 		firsterr = -ENOMEM;
 		goto unwind;
 	}
+
+	mem_begin = si_mem_available();
 
 	for (i = 0; i < kfree_nrealthreads; i++) {
 		firsterr = torture_create_kthread(kfree_perf_thread, (void *)i,
