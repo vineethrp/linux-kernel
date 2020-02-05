@@ -4983,9 +4983,9 @@ static void __init set_ftrace_early_graph(char *buf, int enable)
 	}
 
 	if (enable)
-		ftrace_graph_hash = hash;
+		rcu_assign_pointer(ftrace_graph_hash, hash);
 	else
-		ftrace_graph_notrace_hash = hash;
+		rcu_assign_pointer(ftrace_graph_notrace_hash, hash);
 }
 #endif /* CONFIG_FUNCTION_GRAPH_TRACER */
 
