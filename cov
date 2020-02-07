@@ -1,0 +1,18 @@
+Hi,
+These patches remove SRCU usage from tracepoints. The reason for proposing the
+reverts is because the whole point of SRCU was to avoid having to call
+rcu_irq_enter_irqson(). However this was added back in 865e63b04e9b2 ("tracing:
+Add back in rcu_irq_enter/exit_irqson() for rcuidle tracepoints") because perf
+was breaking..
+
+Further it occurs to me that, by using SRCU for tracepoints, we forgot that RCU
+is not really watching the tracepoint callbacks. This means that anyone doing
+preempt_disable() in their tracepoint callback, and expecting RCU to listen to
+them is in for a big surprise. When RCU is not watching, it does not care about
+preempt-disable sections on CPUs as you can see in the forced-quiescent state loop.
+
+Since SRCU is not providing any benefit because of 865e63b04e9b2 anyway, let us
+revert SRCU tracepoint code to maintain the sanity of tracepoint callback registerers.
+
+option-prefix RFC
+option-subject Revert SRCU from tracepoint infrastructure
