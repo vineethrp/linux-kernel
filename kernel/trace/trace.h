@@ -1459,6 +1459,16 @@ __event_trigger_test_discard(struct trace_event_file *file,
 			     enum event_trigger_type *tt)
 {
 	unsigned long eflags = file->flags;
+	struct trace_event_call *call = file->event_call;
+
+	/*
+	 * If the builtin-filter filters the event, discard the event
+	 * completely without triggering or further dynamic filtering.
+	 */
+	if (call->builtin_filter && call->builtin_filter(true, entry, file)) {
+		__trace_event_discard_commit(buffer, event);
+		return true;
+	}
 
 	if (eflags & EVENT_FILE_FL_TRIGGER_COND)
 		*tt = event_triggers_call(file, entry, event);

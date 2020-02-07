@@ -1414,6 +1414,102 @@ event_filter_write(struct file *filp, const char __user *ubuf, size_t cnt,
 	return cnt;
 }
 
+
+static ssize_t
+event_config_read(struct file *filp, char __user *ubuf, size_t cnt,
+		  loff_t *ppos)
+{
+	struct trace_event_file *file;
+	struct trace_seq *s;
+	int i, r = -ENODEV;
+	struct trace_event_conf_item *conf;
+	const char *config_name = file_dentry(filp)->d_name.name;
+
+	if (*ppos)
+		return 0;
+
+	s = kmalloc(sizeof(*s), GFP_KERNEL);
+
+	if (!s)
+		return -ENOMEM;
+
+	trace_seq_init(s);
+
+	mutex_lock(&event_mutex);
+	file = event_file_data(filp);
+	conf = file->conf;
+	if (file) {
+		for (i = 0; conf[i].item; i++) {
+			if (!strcmp(config_name, conf[i].item)) {
+				trace_seq_printf(s, "%d\n", conf[i].value);
+				break;
+			}
+		}
+
+		if (conf[i].item == NULL) {
+			mutex_unlock(&event_mutex);
+			goto conf_err;
+		}
+	}
+	mutex_unlock(&event_mutex);
+
+	if (file)
+		r = simple_read_from_buffer(ubuf, cnt, ppos,
+					    s->buffer, trace_seq_used(s));
+
+conf_err:
+	kfree(s);
+
+	return r;
+}
+
+static ssize_t
+event_config_write(struct file *filp, const char __user *ubuf, size_t cnt,
+		   loff_t *ppos)
+{
+	struct trace_event_file *file;
+	char *buf;
+	int i, err = -ENODEV;
+	struct trace_event_conf_item *conf;
+	const char *config_name = file_dentry(filp)->d_name.name;
+	long conf_value;
+
+	if (cnt >= PAGE_SIZE)
+		return -EINVAL;
+
+	buf = memdup_user_nul(ubuf, cnt);
+	if (IS_ERR(buf))
+		return PTR_ERR(buf);
+
+	mutex_lock(&event_mutex);
+	file = event_file_data(filp);
+	conf = file->conf;
+
+	for (i = 0; conf[i].item; conf++, i++)
+		if (!strcmp(config_name, conf[i].item))
+			break;
+
+	if (conf->item == NULL)
+		goto conf_err;
+
+	err = kstrtol(buf, 10, &conf_value);
+	if (err)
+		goto conf_err;
+
+	conf->value = (int)conf_value;
+
+conf_err:
+	mutex_unlock(&event_mutex);
+
+	kfree(buf);
+	if (err < 0)
+		return err;
+
+	*ppos += cnt;
+
+	return cnt;
+}
+
 static LIST_HEAD(event_subsystems);
 
 static int subsystem_open(struct inode *inode, struct file *filp)
@@ -1755,6 +1851,13 @@ static const struct file_operations ftrace_event_filter_fops = {
 	.llseek = default_llseek,
 };
 
+static const struct file_operations ftrace_event_config_fops = {
+	.open = tracing_open_generic,
+	.read = event_config_read,
+	.write = event_config_write,
+	.llseek = default_llseek,
+};
+
 static const struct file_operations ftrace_subsystem_filter_fops = {
 	.open = subsystem_open,
 	.read = subsystem_filter_read,
@@ -1997,6 +2100,7 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 
 	name = trace_event_name(call);
 	file->dir = tracefs_create_dir(name, d_events);
+
 	if (!file->dir) {
 		pr_warn("Could not create tracefs '%s' directory\n", name);
 		return -1;
@@ -2012,6 +2116,18 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 				  (void *)(long)call->event.type,
 				  &ftrace_event_id_fops);
 #endif
+
+	if (call->builtin_filter) {
+		file->conf_dir = tracefs_create_dir("config", file->dir);
+
+		if (!file->dir) {
+			pr_warn("Could not create tracefs '%s' directory\n", name);
+			return -1;
+		}
+
+		/* Build config files: <event>/config/{conf1,conf2,...} */
+		call->builtin_filter(false, NULL, file);
+	}
 
 	/*
 	 * Other events may have the same class. Only update
@@ -2638,6 +2754,44 @@ void trace_put_event_file(struct trace_event_file *file)
 	trace_array_put(file->tr);
 }
 EXPORT_SYMBOL_GPL(trace_put_event_file);
+
+/*
+ * Generate tracefs files which could modify the conf object in arr.
+ */
+bool trace_event_gen_conf(struct trace_event_conf_item *conf,
+			  struct trace_event_file *file)
+{
+	int i = 0;
+
+	file->conf = conf;
+
+	while (conf[i].item) {
+		trace_create_file(conf[i].item, 0644, file->conf_dir, file,
+				  &ftrace_event_config_fops);
+		i++;
+	}
+	return false;
+}
+EXPORT_SYMBOL_GPL(trace_event_gen_conf);
+
+/*
+ * Generate tracefs files which could modify the conf object in arr.
+ */
+int trace_event_get_conf(struct trace_event_conf_item *conf, char *item)
+{
+	int i = 0;
+
+	while (conf[i].item) {
+		if (!strcmp(conf[i].item, item))
+			return conf[i].value;
+		i++;
+	}
+
+	/* If this function is called, it should always find the item */
+	WARN_ON_ONCE(1);
+	return -EINVAL;
+}
+EXPORT_SYMBOL_GPL(trace_event_get_conf);
 
 #ifdef CONFIG_DYNAMIC_FTRACE
 

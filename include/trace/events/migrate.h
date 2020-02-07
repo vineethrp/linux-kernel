@@ -70,6 +70,19 @@ TRACE_EVENT(mm_migrate_pages,
 		__print_symbolic(__entry->mode, MIGRATE_MODE),
 		__print_symbolic(__entry->reason, MIGRATE_REASON))
 );
+
+#define CREATE_BUILTIN_FILTER
+
+DEFINE_BUILTIN_FILTER(mm_migrate_pages,
+	TP_configs(
+		__field(testname, 1)
+		__field(testname2, 2)
+	),
+	TP_filter_func(
+		return false;
+	)
+);;; ;;;
+
 #endif /* _TRACE_MIGRATE_H */
 
 /* This part must be outside protection */

@@ -152,6 +152,9 @@ TRACE_MAKE_SYSTEM_STR();
 #define TRACE_EVENT_PERF_PERM(name, expr...)				\
 	__TRACE_EVENT_PERF_PERM(name, expr)
 
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
@@ -222,7 +225,57 @@ TRACE_MAKE_SYSTEM_STR();
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
- * Stage 3 of the trace events.
+ * Stage 3 of the trace events, used for built-in filters.
+ */
+
+#undef DECLARE_EVENT_CLASS
+#define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)
+
+#undef DEFINE_EVENT_PRINT
+#define DEFINE_EVENT_PRINT(template, name, proto, args, print)
+
+#undef __field
+#define __field(item, default_val) { #item, default_val }, 
+
+#undef TP_configs
+#define TP_configs(args...) args
+
+#undef  TP_filter_func
+#define TP_filter_func(body) body
+
+#undef  DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)			\
+								\
+struct trace_event_conf_item event_conf_##name[] = {		\
+	conf							\
+	{ NULL, -1 }						\
+};								\
+								\
+static bool trace_event_##name_builtin_filter(				\
+		struct trace_event_conf_item *__conf,		\
+		struct trace_event_raw_##name *__entry,		\
+		struct trace_event_file *file) {		\
+	func							\
+}								\
+								\
+static bool trace_event_conf_filter_fn_##name(bool call_filter,	\
+			void *ent_in,				\
+			struct trace_event_file *file)		\
+{								\
+	struct trace_event_raw_##name *ent =			\
+		(struct trace_event_raw_##name *)ent_in;	\
+								\
+	if (call_filter)					\
+		return trace_event_##name_builtin_filter(	\
+				event_conf_##name, ent, NULL);  \
+	else /* Just build filter conf files in tracefs	*/	\
+		return trace_event_gen_conf(event_conf_##name, file);\
+}	
+	
+#include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
+
+/*
+ * Stage 4 of the trace events.
  *
  * Override the macros in the event tracepoint header <trace/events/XXX.h>
  * to include the following:
@@ -533,7 +586,7 @@ static inline notrace int trace_event_get_offsets_##call(		\
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
- * Stage 4 of the trace events.
+ * Stage 5 of the trace events.
  *
  * Override the macros in the event tracepoint header <trace/events/XXX.h>
  * to include the following:
@@ -758,6 +811,8 @@ static struct trace_event_class __used __refdata event_class_##call = { \
 };
 
 #undef DEFINE_EVENT
+
+#ifdef CREATE_BUILTIN_FILTER
 #define DEFINE_EVENT(template, call, proto, args)			\
 									\
 static struct trace_event_call __used event_##call = {			\
@@ -766,11 +821,31 @@ static struct trace_event_call __used event_##call = {			\
 		.tp			= &__tracepoint_##call,		\
 	},								\
 	.event.funcs		= &trace_event_type_funcs_##template,	\
-	.print_fmt		= print_fmt_##template,			\
-	.flags			= TRACE_EVENT_FL_TRACEPOINT,		\
+	.builtin_filter		= &trace_event_conf_filter_fn_##call,	\
+	.print_fmt              = print_fmt_##template,			\
+	.flags                  = TRACE_EVENT_FL_TRACEPOINT,		\
 };									\
 static struct trace_event_call __used					\
 __attribute__((section("_ftrace_events"))) *__event_##call = &event_##call
+
+#else
+
+/* Regular DEFINE_EVENT, with a dummy filter function */
+#define DEFINE_EVENT(template, call, proto, args)			\
+									\
+static struct trace_event_call __used event_##call = {			\
+	.class			= &event_class_##template,		\
+	{								\
+		.tp			= &__tracepoint_##call,		\
+	},								\
+	.event.funcs		= &trace_event_type_funcs_##template,	\
+	.print_fmt              = print_fmt_##template,			\
+	.flags                  = TRACE_EVENT_FL_TRACEPOINT,		\
+};									\
+static struct trace_event_call __used					\
+__attribute__((section("_ftrace_events"))) *__event_##call = &event_##call
+
+#endif /* CREATE_BUILTIN_FILTER */
 
 #undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, call, proto, args, print)		\
