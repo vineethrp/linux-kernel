@@ -92,6 +92,9 @@
 /* Let the trace headers be reread */
 #define TRACE_HEADER_MULTI_READ
 
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /* Make all open coded DECLARE_TRACE nops */

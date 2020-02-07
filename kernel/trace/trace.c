@@ -9500,3 +9500,12 @@ __init static int tracing_set_default_clock(void)
 }
 late_initcall_sync(tracing_set_default_clock);
 #endif
+
+/*
+ * Generate tracefs files which could modify the conf object in arr.
+ */
+bool trace_event_gen_conf(struct trace_event_conf_item *conf,
+			  struct trace_event *event)
+{
+	return false;
+}

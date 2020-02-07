@@ -87,5 +87,8 @@ static inline void perf_test_probe_##call(void)				\
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 #endif /* CONFIG_PERF_EVENTS */
