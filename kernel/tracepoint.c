@@ -18,9 +18,6 @@
 extern tracepoint_ptr_t __start___tracepoints_ptrs[];
 extern tracepoint_ptr_t __stop___tracepoints_ptrs[];
 
-DEFINE_SRCU(tracepoint_srcu);
-EXPORT_SYMBOL_GPL(tracepoint_srcu);
-
 /* Set to 1 to enable tracepoint debug output */
 static const int tracepoint_debug;
 
@@ -60,14 +57,9 @@ static inline void *allocate_probes(int count)
 	return p == NULL ? NULL : p->probes;
 }
 
-static void srcu_free_old_probes(struct rcu_head *head)
-{
-	kfree(container_of(head, struct tp_probes, rcu));
-}
-
 static void rcu_free_old_probes(struct rcu_head *head)
 {
-	call_srcu(&tracepoint_srcu, head, srcu_free_old_probes);
+	kfree(container_of(head, struct tp_probes, rcu));
 }
 
 static __init int release_early_probes(void)
