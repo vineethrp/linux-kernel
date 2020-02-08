@@ -43,6 +43,11 @@ MIGRATE_REASON
 #define EM(a, b)	{a, b},
 #define EMe(a, b)	{a, b}
 
+#ifndef TRINC
+#define TRINC(num)
+//[[[[TRINC num]]]
+#endif
+
 TRACE_EVENT(mm_migrate_pages,
 
 	TP_PROTO(unsigned long succeeded, unsigned long failed,

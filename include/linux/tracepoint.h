@@ -329,6 +329,7 @@ static inline struct tracepoint *tracepoint_ptr_deref(tracepoint_ptr_t *p)
 
 #endif /* TRACEPOINTS_ENABLED */
 
+
 #ifndef DEFINE_BUILTIN_FILTER
 #define DEFINE_BUILTIN_FILTER(name, conf, func)
 #endif

@@ -152,9 +152,11 @@ TRACE_MAKE_SYSTEM_STR();
 #define TRACE_EVENT_PERF_PERM(name, expr...)				\
 	__TRACE_EVENT_PERF_PERM(name, expr)
 
+TRINC(null)
 #undef DEFINE_BUILTIN_FILTER
 #define DEFINE_BUILTIN_FILTER(name, conf, func)
 
+TRINC(1)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
@@ -222,6 +224,10 @@ TRACE_MAKE_SYSTEM_STR();
 #undef TRACE_EVENT_PERF_PERM
 #define TRACE_EVENT_PERF_PERM(event, expr...)
 
+TRINC(null)
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+TRINC(2)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
@@ -243,6 +249,7 @@ TRACE_MAKE_SYSTEM_STR();
 #undef  TP_filter_func
 #define TP_filter_func(body) body
 
+TRINC(set)
 #undef  DEFINE_BUILTIN_FILTER
 #define DEFINE_BUILTIN_FILTER(name, conf, func)			\
 								\
@@ -272,6 +279,7 @@ static bool trace_event_conf_filter_fn_##name(bool call_filter,	\
 		return trace_event_gen_conf(event_conf_##name, file);\
 }	
 	
+TRINC(3)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
@@ -452,6 +460,10 @@ static struct trace_event_functions trace_event_type_funcs_##call = {	\
 	.trace			= trace_raw_output_##call,		\
 };
 
+TRINC(null)
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+TRINC(4)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 #undef __field_ext
@@ -503,6 +515,10 @@ static struct trace_event_fields trace_event_fields_##call[] = {	\
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
+TRINC(null)
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+TRINC(5)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
@@ -583,6 +599,10 @@ static inline notrace int trace_event_get_offsets_##call(		\
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
+TRINC(null)
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+TRINC(6)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 /*
@@ -777,6 +797,10 @@ static inline void ftrace_test_probe_##call(void)			\
 #undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)
 
+TRINC(null)
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+TRINC(7)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 #undef __entry
@@ -864,4 +888,8 @@ static struct trace_event_call __used event_##call = {			\
 static struct trace_event_call __used					\
 __attribute__((section("_ftrace_events"))) *__event_##call = &event_##call
 
+TRINC(null)
+#undef DEFINE_BUILTIN_FILTER
+#define DEFINE_BUILTIN_FILTER(name, conf, func)
+TRINC(8)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
