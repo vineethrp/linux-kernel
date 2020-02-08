@@ -80,6 +80,15 @@ TRACE_MAKE_SYSTEM_STR();
 			     PARAMS(print));		       \
 	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
 
+#undef TRACE_EVENT_FILTERED
+#define TRACE_EVENT_FILTERED(name, proto, args, tstruct, assign, print) \
+	DECLARE_EVENT_CLASS(name,			       \
+			     PARAMS(proto),		       \
+			     PARAMS(args),		       \
+			     PARAMS(tstruct),		       \
+			     PARAMS(assign),		       \
+			     PARAMS(print));		       \
+	DEFINE_EVENT_FILTERED(name, name, PARAMS(proto), PARAMS(args));
 
 #undef __field
 #define __field(type, item)		type	item;
@@ -122,6 +131,10 @@ TRACE_MAKE_SYSTEM_STR();
 #define DEFINE_EVENT(template, name, proto, args)	\
 	static struct trace_event_call	__used		\
 	__attribute__((__aligned__(4))) event_##name
+
+#undef DEFINE_EVENT_FILTERED
+#define DEFINE_EVENT_FILTERED(template, name, proto, args) \
+	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
 #undef DEFINE_EVENT_FN
 #define DEFINE_EVENT_FN(template, name, proto, args, reg, unreg)	\
@@ -237,6 +250,9 @@ TRINC(2)
 #undef DECLARE_EVENT_CLASS
 #define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)
 
+#undef DEFINE_EVENT
+#define DEFINE_EVENT(template, name, proto, args)
+
 #undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)
 
@@ -265,7 +281,7 @@ static bool trace_event_##name_builtin_filter(				\
 	func							\
 }								\
 								\
-static bool trace_event_conf_filter_fn_##name(bool call_filter,	\
+static bool trace_event_conf_filter_##name(bool call_filter,	\
 			void *ent_in,				\
 			struct trace_event_file *file)		\
 {								\
@@ -278,7 +294,7 @@ static bool trace_event_conf_filter_fn_##name(bool call_filter,	\
 	else /* Just build filter conf files in tracefs	*/	\
 		return trace_event_gen_conf(event_conf_##name, file);\
 }	
-	
+
 TRINC(3)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
@@ -835,26 +851,6 @@ static struct trace_event_class __used __refdata event_class_##call = { \
 };
 
 #undef DEFINE_EVENT
-
-#ifdef CREATE_BUILTIN_FILTER
-#define DEFINE_EVENT(template, call, proto, args)			\
-									\
-static struct trace_event_call __used event_##call = {			\
-	.class			= &event_class_##template,		\
-	{								\
-		.tp			= &__tracepoint_##call,		\
-	},								\
-	.event.funcs		= &trace_event_type_funcs_##template,	\
-	.builtin_filter		= &trace_event_conf_filter_fn_##call,	\
-	.print_fmt              = print_fmt_##template,			\
-	.flags                  = TRACE_EVENT_FL_TRACEPOINT,		\
-};									\
-static struct trace_event_call __used					\
-__attribute__((section("_ftrace_events"))) *__event_##call = &event_##call
-
-#else
-
-/* Regular DEFINE_EVENT, with a dummy filter function */
 #define DEFINE_EVENT(template, call, proto, args)			\
 									\
 static struct trace_event_call __used event_##call = {			\
@@ -869,7 +865,21 @@ static struct trace_event_call __used event_##call = {			\
 static struct trace_event_call __used					\
 __attribute__((section("_ftrace_events"))) *__event_##call = &event_##call
 
-#endif /* CREATE_BUILTIN_FILTER */
+#undef DEFINE_EVENT_FILTERED
+#define DEFINE_EVENT_FILTERED(template, call, proto, args)		\
+									\
+static struct trace_event_call __used event_##call = {			\
+	.class			= &event_class_##template,		\
+	{								\
+		.tp			= &__tracepoint_##call,		\
+	},								\
+	.builtin_filter		= &trace_event_conf_filter_##call,	\
+	.event.funcs		= &trace_event_type_funcs_##template,	\
+	.print_fmt              = print_fmt_##template,			\
+	.flags                  = TRACE_EVENT_FL_TRACEPOINT,		\
+};									\
+static struct trace_event_call __used					\
+__attribute__((section("_ftrace_events"))) *__event_##call = &event_##call
 
 #undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, call, proto, args, print)		\
