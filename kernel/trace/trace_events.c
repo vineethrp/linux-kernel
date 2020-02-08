@@ -1998,11 +1998,6 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 	name = trace_event_name(call);
 	file->dir = tracefs_create_dir(name, d_events);
 
-	if (call->builtin_filter) {
-		file->conf_dir = tracefs_create_dir("config", file->dir);
-		// event_create_config_files(call);
-	}
-
 	if (!file->dir) {
 		pr_warn("Could not create tracefs '%s' directory\n", name);
 		return -1;
@@ -2018,6 +2013,11 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 				  (void *)(long)call->event.type,
 				  &ftrace_event_id_fops);
 #endif
+
+	if (call->builtin_filter) {
+		file->conf_dir = tracefs_create_dir("config", file->dir);
+		// event_create_config_files(call);
+	}
 
 	/*
 	 * Other events may have the same class. Only update
