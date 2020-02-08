@@ -107,6 +107,10 @@ __DEFINE_EVENT(template, call, PARAMS(proto), PARAMS(args), size)
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
+#undef DEFINE_EVENT_FILTERED
+#define DEFINE_EVENT_FILTERED(template, call, proto, args)		\
+	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
+
 #undef DEFINE_BUILTIN_FILTER
 #define DEFINE_BUILTIN_FILTER(name, conf, func)
 
