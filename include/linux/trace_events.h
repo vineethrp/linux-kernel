@@ -341,6 +341,8 @@ struct trace_event_conf_item {
 bool trace_event_gen_conf(struct trace_event_conf_item *conf,
 			  struct trace_event_file *file);
 
+int trace_event_get_conf(struct trace_event_conf_item *conf, char *item);
+
 static inline const char *
 trace_event_name(struct trace_event_call *call)
 {

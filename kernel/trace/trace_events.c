@@ -2774,6 +2774,25 @@ bool trace_event_gen_conf(struct trace_event_conf_item *conf,
 }
 EXPORT_SYMBOL_GPL(trace_event_gen_conf);
 
+/*
+ * Generate tracefs files which could modify the conf object in arr.
+ */
+int trace_event_get_conf(struct trace_event_conf_item *conf, char *item)
+{
+	int i = 0;
+
+	while (conf[i].item) {
+		if (!strcmp(conf[i].item, item))
+			return conf[i].value;
+		i++;
+	}
+
+	/* If this function is called, it should always find the item */
+	WARN_ON_ONCE(1);
+	return -EINVAL;
+}
+EXPORT_SYMBOL_GPL(trace_event_get_conf);
+
 #ifdef CONFIG_DYNAMIC_FTRACE
 
 /* Avoid typos */

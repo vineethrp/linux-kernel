@@ -334,6 +334,10 @@ static inline struct tracepoint *tracepoint_ptr_deref(tracepoint_ptr_t *p)
 #define DEFINE_BUILTIN_FILTER(name, conf, func)
 #endif
 
+#ifndef TP_get_conf
+#define TP_get_conf(item) trace_event_get_conf(__conf, #item)
+#endif
+
 #ifdef CONFIG_TRACING
 /**
  * tracepoint_string - register constant persistent string to trace system

@@ -258,14 +258,14 @@ struct trace_event_conf_item event_conf_##name[] = {		\
 	{ NULL, -1 }						\
 };								\
 								\
-bool trace_event_##name_builtin_filter(				\
-		struct trace_event_conf_item *conf_in,		\
-		struct trace_event_raw_##name *entry,		\
+static bool trace_event_##name_builtin_filter(				\
+		struct trace_event_conf_item *__conf,		\
+		struct trace_event_raw_##name *__entry,		\
 		struct trace_event_file *file) {		\
 	func							\
 }								\
 								\
-bool trace_event_conf_filter_fn_##name(bool call_filter,	\
+static bool trace_event_conf_filter_fn_##name(bool call_filter,	\
 			void *ent_in,				\
 			struct trace_event_file *file)		\
 {								\
