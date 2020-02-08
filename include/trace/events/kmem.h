@@ -339,15 +339,17 @@ TRACE_EVENT(rss_stat,
 
 	TP_PROTO(struct mm_struct *mm,
 		int member,
-		long count),
+		long count,
+		long value),
 
-	TP_ARGS(mm, member, count),
+	TP_ARGS(mm, member, count, value),
 
 	TP_STRUCT__entry(
 		__field(unsigned int, mm_id)
 		__field(unsigned int, curr)
 		__field(int, member)
 		__field(long, size)
+		__field(long, delta)
 	),
 
 	TP_fast_assign(
@@ -355,6 +357,7 @@ TRACE_EVENT(rss_stat,
 		__entry->curr = !!(current->mm == mm);
 		__entry->member = member;
 		__entry->size = (count << PAGE_SHIFT);
+		__entry->delta = (value << PAGE_SHIFT);
 	),
 
 	TP_printk("mm_id=%u curr=%d member=%d size=%ldB",
