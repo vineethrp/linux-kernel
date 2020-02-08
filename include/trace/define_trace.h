@@ -92,6 +92,10 @@
 /* Let the trace headers be reread */
 #define TRACE_HEADER_MULTI_READ
 
+#ifndef TRINC
+#define TRINC(num)
+#endif
+
 #undef DEFINE_BUILTIN_FILTER
 #define DEFINE_BUILTIN_FILTER(name, conf, func)
 

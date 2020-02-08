@@ -110,6 +110,11 @@ __DEFINE_EVENT(template, call, PARAMS(proto), PARAMS(args), size)
 #undef DEFINE_BUILTIN_FILTER
 #define DEFINE_BUILTIN_FILTER(name, conf, func)
 
+#ifndef TRINC
+#define TRINC(num)
+//[[[[TRINC num]]]
+#endif
+TRINC(11)
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
 #undef DEFINE_EVENT_WRITABLE
