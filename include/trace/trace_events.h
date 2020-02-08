@@ -267,7 +267,6 @@ bool trace_event_##name_builtin_filter(				\
 								\
 bool trace_event_conf_filter_fn_##name(bool call_filter,	\
 			void *ent_in,				\
-			struct trace_event *ev,			\
 			struct trace_event_file *file)		\
 {								\
 	struct trace_event_raw_##name *ent =			\

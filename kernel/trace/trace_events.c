@@ -2126,7 +2126,7 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 		}
 
 		/* Build config files: <event>/config/{conf1,conf2,...} */
-		call->builtin_filter(false, NULL, NULL, file);
+		call->builtin_filter(false, NULL, file);
 	}
 
 	/*

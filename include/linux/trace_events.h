@@ -284,8 +284,7 @@ struct trace_event_call {
 	struct trace_event	event;
 	char			*print_fmt;
 	struct event_filter	*filter;
-	bool (*builtin_filter) (bool call, void *ent_in, struct trace_event *ev,
-				struct trace_event_file *file);
+	bool (*builtin_filter) (bool call, void *ent, struct trace_event_file *file);
 
 	void			*mod;
 	void			*data;
