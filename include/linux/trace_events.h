@@ -336,7 +336,7 @@ static inline bool bpf_prog_array_valid(struct trace_event_call *call)
 
 struct trace_event_conf_item {
 	char *item;
-	int val;
+	int value;
 };
 
 bool trace_event_gen_conf(struct trace_event_conf_item *conf,
@@ -537,8 +537,8 @@ struct trace_event_file {
 	struct list_head		triggers;
 
 	/* Used for built-in filter configuration through tracefs */
+	struct trace_event_conf_item	*conf;
 	struct dentry			*conf_dir;
-	struct list_head		conf;
 
 	/*
 	 * 32 bit flags:
