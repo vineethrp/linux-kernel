@@ -260,23 +260,24 @@ struct trace_event_conf_item event_conf_##name[] = {		\
 								\
 bool trace_event_##name_builtin_filter(				\
 		struct trace_event_conf_item *conf_in,		\
-		struct trace_event *event,			\
-		struct trace_event_raw_##name *entry) { 	\
+		struct trace_event_raw_##name *entry,		\
+		struct trace_event_file *file) {		\
 	func							\
 }								\
 								\
-bool trace_event_conf_filter_fn_##name(bool call,		\
+bool trace_event_conf_filter_fn_##name(bool call_filter,	\
+			void *ent_in,				\
 			struct trace_event *ev,			\
-			void *ent_in)				\
+			struct trace_event_file *file)		\
 {								\
 	struct trace_event_raw_##name *ent =			\
 		(struct trace_event_raw_##name *)ent_in;	\
 								\
-	if (call)						\
+	if (call_filter)					\
 		return trace_event_##name_builtin_filter(	\
-				event_conf_##name, ev, ent);    \
-	else							\
-		return trace_event_gen_conf(event_conf_##name,ev);\
+				event_conf_##name, ent, NULL);  \
+	else /* Just build filter conf files in tracefs	*/	\
+		return trace_event_gen_conf(event_conf_##name, file);\
 }	
 	
 TRINC(3)

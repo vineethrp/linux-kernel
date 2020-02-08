@@ -2016,7 +2016,14 @@ event_create_dir(struct dentry *parent, struct trace_event_file *file)
 
 	if (call->builtin_filter) {
 		file->conf_dir = tracefs_create_dir("config", file->dir);
-		// event_create_config_files(call);
+
+		if (!file->dir) {
+			pr_warn("Could not create tracefs '%s' directory\n", name);
+			return -1;
+		}
+
+		/* Build config files: <event>/config/{conf1,conf2,...} */
+		call->builtin_filter(false, NULL, NULL, file);
 	}
 
 	/*

@@ -284,7 +284,8 @@ struct trace_event_call {
 	struct trace_event	event;
 	char			*print_fmt;
 	struct event_filter	*filter;
-	bool (*builtin_filter) (bool call, struct trace_event *ev, void *ent_in);
+	bool (*builtin_filter) (bool call, void *ent_in, struct trace_event *ev,
+				struct trace_event_file *file);
 
 	void			*mod;
 	void			*data;
@@ -339,7 +340,7 @@ struct trace_event_conf_item {
 };
 
 bool trace_event_gen_conf(struct trace_event_conf_item *conf,
-			  struct trace_event *event);
+			  struct trace_event_file *file);
 
 static inline const char *
 trace_event_name(struct trace_event_call *call)
@@ -531,10 +532,13 @@ struct trace_event_file {
 	struct trace_event_call		*event_call;
 	struct event_filter __rcu	*filter;
 	struct dentry			*dir;
-	struct dentry			*conf_dir;
 	struct trace_array		*tr;
 	struct trace_subsystem_dir	*system;
 	struct list_head		triggers;
+
+	/* Used for built-in filter configuration through tracefs */
+	struct dentry			*conf_dir;
+	struct list_head		conf;
 
 	/*
 	 * 32 bit flags:
