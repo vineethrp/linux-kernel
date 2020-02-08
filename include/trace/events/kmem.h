@@ -335,7 +335,7 @@ static unsigned int __maybe_unused mm_ptr_to_hash(const void *ptr)
 #define __PTR_TO_HASHVAL
 #endif
 
-TRACE_EVENT(rss_stat,
+TRACE_EVENT_FILTERED(rss_stat,
 
 	TP_PROTO(struct mm_struct *mm,
 		int member,
@@ -366,6 +366,19 @@ TRACE_EVENT(rss_stat,
 		__entry->member,
 		__entry->size)
 	);
+
+DEFINE_BUILTIN_FILTER(rss_stat,
+	TP_configs(
+		__field(curr, 1)
+		__field(member, 2)
+	),
+
+	TP_filter_func(
+		if ((int)__entry->curr == TP_get_conf(curr))
+			return false;
+		return true;
+	)
+)
 #endif /* _TRACE_KMEM_H */
 
 /* This part must be outside protection */
