@@ -1,0 +1,5 @@
+1. Combine DEFINE_BUILTIN_FILTER with TRACE_EVENT_FILTERED.
+2. Add custom types to the conf.
+3. Rename conf to filter_conf in traces.
+4. Add an example of rate-limiting.
+5. Clean and post RFC
