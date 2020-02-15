@@ -5,7 +5,6 @@
 #define TRACE_SYSTEM_VAR TRACE_SYSTEM
 #endif
 
-#include "trace_events_stage.h"
 /*
  * DECLARE_EVENT_CLASS can be used to add a generic function
  * handlers for events. That is, if all events have the same
@@ -157,7 +156,6 @@ TRACE_MAKE_SYSTEM_STR();
 
 #include "trace_events_stage.h"
 #define TRACE_DEFINE_ENUM(a)
-
 #define TRACE_DEFINE_SIZEOF(a)
 
 #define __field(type, item)
@@ -229,10 +227,9 @@ TRACE_MAKE_SYSTEM_STR();
  * in binary.
  */
 #include "trace_events_stage.h"
-
 #define TRACE_DEFINE_ENUM(a)
-
 #define TRACE_DEFINE_SIZEOF(a)
+#define TRACE_EVENT_PERF_PERM(event, expr...)
 
 #define __entry field
 
@@ -567,6 +564,7 @@ static inline notrace int trace_event_get_offsets_##call(		\
 #include "trace_events_stage.h"
 #define TRACE_DEFINE_ENUM(a)
 #define TRACE_DEFINE_SIZEOF(a)
+#define TRACE_EVENT_PERF_PERM(event, expr...)
 
 #ifdef CONFIG_PERF_EVENTS
 
