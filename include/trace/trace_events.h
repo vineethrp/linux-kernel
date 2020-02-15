@@ -209,6 +209,8 @@ TRACE_MAKE_SYSTEM_STR();
  * in binary.
  */
 
+#include "undef_all.h"
+
 #undef __entry
 #define __entry field
 
@@ -297,7 +299,8 @@ TRACE_MAKE_SYSTEM_STR();
 	trace_print_hex_dump_seq(p, prefix_str, prefix_type,		\
 				 rowsize, groupsize, buf, len, ascii)
 
-#undef DECLARE_EVENT_CLASS
+#define DEFINE_EVENT(template, name, proto, args)
+
 #define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)	\
 static notrace enum print_line_t					\
 trace_raw_output_##call(struct trace_iterator *iter, int flags,		\
