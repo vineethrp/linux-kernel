@@ -27,6 +27,8 @@
 #define __app__(x, y) str__##x##y
 #define __app(x, y) __app__(x, y)
 
+#include "undef_all.h"
+
 #define TRACE_SYSTEM_STRING __app(TRACE_SYSTEM_VAR,__trace_system_name)
 
 #define TRACE_MAKE_SYSTEM_STR()				\
@@ -35,7 +37,6 @@
 
 TRACE_MAKE_SYSTEM_STR();
 
-#undef TRACE_DEFINE_ENUM
 #define TRACE_DEFINE_ENUM(a)				\
 	static struct trace_eval_map __used __initdata	\
 	__##TRACE_SYSTEM##_##a =			\
@@ -48,7 +49,6 @@ TRACE_MAKE_SYSTEM_STR();
 	__attribute__((section("_ftrace_eval_map")))	\
 	*TRACE_SYSTEM##_##a = &__##TRACE_SYSTEM##_##a
 
-#undef TRACE_DEFINE_SIZEOF
 #define TRACE_DEFINE_SIZEOF(a)				\
 	static struct trace_eval_map __used __initdata	\
 	__##TRACE_SYSTEM##_##a =			\
@@ -70,7 +70,6 @@ TRACE_MAKE_SYSTEM_STR();
  *
  * TRACE_EVENT is a one to one mapping between tracepoint and template.
  */
-#undef TRACE_EVENT
 #define TRACE_EVENT(name, proto, args, tstruct, assign, print) \
 	DECLARE_EVENT_CLASS(name,			       \
 			     PARAMS(proto),		       \
@@ -81,34 +80,25 @@ TRACE_MAKE_SYSTEM_STR();
 	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
 
 
-#undef __field
 #define __field(type, item)		type	item;
 
-#undef __field_ext
 #define __field_ext(type, item, filter_type)	type	item;
 
-#undef __field_struct
 #define __field_struct(type, item)	type	item;
 
-#undef __field_struct_ext
 #define __field_struct_ext(type, item, filter_type)	type	item;
 
-#undef __array
 #define __array(type, item, len)	type	item[len];
 
-#undef __dynamic_array
 #define __dynamic_array(type, item, len) u32 __data_loc_##item;
 
 #undef __string
 #define __string(item, src) __dynamic_array(char, item, -1)
 
-#undef __bitmask
 #define __bitmask(item, nr_bits) __dynamic_array(char, item, -1)
 
-#undef TP_STRUCT__entry
 #define TP_STRUCT__entry(args...) args
 
-#undef DECLARE_EVENT_CLASS
 #define DECLARE_EVENT_CLASS(name, proto, args, tstruct, assign, print)	\
 	struct trace_event_raw_##name {					\
 		struct trace_entry	ent;				\
@@ -118,37 +108,30 @@ TRACE_MAKE_SYSTEM_STR();
 									\
 	static struct trace_event_class event_class_##name;
 
-#undef DEFINE_EVENT
 #define DEFINE_EVENT(template, name, proto, args)	\
 	static struct trace_event_call	__used		\
 	__attribute__((__aligned__(4))) event_##name
 
-#undef DEFINE_EVENT_FN
 #define DEFINE_EVENT_FN(template, name, proto, args, reg, unreg)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
-#undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
 /* Callbacks are meaningless to ftrace. */
-#undef TRACE_EVENT_FN
 #define TRACE_EVENT_FN(name, proto, args, tstruct,			\
 		assign, print, reg, unreg)				\
 	TRACE_EVENT(name, PARAMS(proto), PARAMS(args),			\
 		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
 
-#undef TRACE_EVENT_FN_COND
 #define TRACE_EVENT_FN_COND(name, proto, args, cond, tstruct,	\
 		assign, print, reg, unreg)				\
 	TRACE_EVENT_CONDITION(name, PARAMS(proto), PARAMS(args), PARAMS(cond),		\
 		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
 
-#undef TRACE_EVENT_FLAGS
 #define TRACE_EVENT_FLAGS(name, value)					\
 	__TRACE_EVENT_FLAGS(name, value)
 
-#undef TRACE_EVENT_PERF_PERM
 #define TRACE_EVENT_PERF_PERM(name, expr...)				\
 	__TRACE_EVENT_PERF_PERM(name, expr)
 
