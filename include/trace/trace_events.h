@@ -73,7 +73,6 @@ TRACE_MAKE_SYSTEM_STR();
 
 #define __dynamic_array(type, item, len) u32 __data_loc_##item;
 
-#undef __string
 #define __string(item, src) __dynamic_array(char, item, -1)
 
 #define __bitmask(item, nr_bits) __dynamic_array(char, item, -1)
@@ -135,53 +134,38 @@ TRACE_MAKE_SYSTEM_STR();
  * The size of an array is also encoded, in the higher 16 bits of <item>.
  */
 
-#undef TRACE_DEFINE_ENUM
 #define TRACE_DEFINE_ENUM(a)
 
-#undef TRACE_DEFINE_SIZEOF
 #define TRACE_DEFINE_SIZEOF(a)
 
-#undef __field
 #define __field(type, item)
 
-#undef __field_ext
 #define __field_ext(type, item, filter_type)
 
-#undef __field_struct
 #define __field_struct(type, item)
 
-#undef __field_struct_ext
 #define __field_struct_ext(type, item, filter_type)
 
-#undef __array
 #define __array(type, item, len)
 
-#undef __dynamic_array
 #define __dynamic_array(type, item, len)	u32 item;
 
-#undef __string
 #define __string(item, src) __dynamic_array(char, item, -1)
 
-#undef __bitmask
 #define __bitmask(item, nr_bits) __dynamic_array(unsigned long, item, -1)
 
-#undef DECLARE_EVENT_CLASS
 #define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)	\
 	struct trace_event_data_offsets_##call {			\
 		tstruct;						\
 	};
 
-#undef DEFINE_EVENT
 #define DEFINE_EVENT(template, name, proto, args)
 
-#undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
-#undef TRACE_EVENT_FLAGS
 #define TRACE_EVENT_FLAGS(event, flag)
 
-#undef TRACE_EVENT_PERF_PERM
 #define TRACE_EVENT_PERF_PERM(event, expr...)
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
