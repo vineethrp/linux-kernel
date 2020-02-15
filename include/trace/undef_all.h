@@ -55,7 +55,6 @@
 
 #define TP_STRUCT__entry(args...) args
 
-
 #define __get_dynamic_array(field)	\
 		((void *)__entry + (__entry->__data_loc_##field & 0xffff))
 

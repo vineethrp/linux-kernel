@@ -170,6 +170,8 @@ TRACE_MAKE_SYSTEM_STR();
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
+#include "undef_all.h"
+
 /*
  * Stage 3 of the trace events.
  *
@@ -209,7 +211,10 @@ TRACE_MAKE_SYSTEM_STR();
  * in binary.
  */
 
-#include "undef_all.h"
+
+#define TRACE_DEFINE_ENUM(a)
+
+#define TRACE_DEFINE_SIZEOF(a)
 
 #define __entry field
 
@@ -329,7 +334,6 @@ static struct trace_event_functions trace_event_type_funcs_##call = {	\
 };
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
-#include "undef_all.h"
 
 #define __field_ext(_type, _item, _filter_type) {			\
 	.type = #_type, .name = #_item,					\
@@ -359,18 +363,20 @@ static struct trace_event_functions trace_event_type_funcs_##call = {	\
 
 #define __bitmask(item, nr_bits) __dynamic_array(unsigned long, item, -1)
 
+#undef DECLARE_EVENT_CLASS // Redefining within stage.
 #define DECLARE_EVENT_CLASS(call, proto, args, tstruct, func, print)	\
 static struct trace_event_fields trace_event_fields_##call[] = {	\
 	tstruct								\
 	{} };
 
+#undef DEFINE_EVENT // Redefining within stage.
 #define DEFINE_EVENT(template, name, proto, args)
 
+#undef DEFINE_EVENT_PRINT // Redefining within stage.
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
-#include "undef_all.h"
 
 /*
  * remember the offset of each array from the beginning of the event.
@@ -452,7 +458,8 @@ static inline notrace int trace_event_get_offsets_##call(		\
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 #include "undef_all.h"
-
+#define TRACE_DEFINE_ENUM(a)
+#define TRACE_DEFINE_SIZEOF(a)
 
 /*
  * Stage 4 of the trace events.
@@ -636,11 +643,6 @@ static inline void ftrace_test_probe_##call(void)			\
 
 #undef __entry
 #define __entry REC
-
-#undef __get_dynamic_array
-#undef __get_dynamic_array_len
-#undef __get_str
-#undef __get_bitmask
 
 #undef TP_printk
 #define TP_printk(fmt, args...) "\"" fmt "\", "  __stringify(args)
