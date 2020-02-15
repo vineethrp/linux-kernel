@@ -637,16 +637,10 @@ static inline void ftrace_test_probe_##call(void)			\
 #undef __entry
 #define __entry REC
 
-#undef __print_flags
-#undef __print_symbolic
-#undef __print_hex
-#undef __print_hex_str
 #undef __get_dynamic_array
 #undef __get_dynamic_array_len
 #undef __get_str
 #undef __get_bitmask
-#undef __print_array
-#undef __print_hex_dump
 
 #undef TP_printk
 #define TP_printk(fmt, args...) "\"" fmt "\", "  __stringify(args)
