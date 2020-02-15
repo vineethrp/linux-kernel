@@ -215,14 +215,6 @@ TRACE_MAKE_SYSTEM_STR();
 
 #define TP_printk(fmt, args...) fmt "\n", args
 
-#define __get_dynamic_array(field)	\
-		((void *)__entry + (__entry->__data_loc_##field & 0xffff))
-
-#define __get_dynamic_array_len(field)	\
-		((__entry->__data_loc_##field >> 16) & 0xffff)
-
-#define __get_str(field) ((char *)__get_dynamic_array(field))
-
 #define __get_bitmask(field)						\
 	({								\
 		void *__bitmask = __get_dynamic_array(field);		\
@@ -337,57 +329,48 @@ static struct trace_event_functions trace_event_type_funcs_##call = {	\
 };
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
+#include "undef_all.h"
 
-#undef __field_ext
 #define __field_ext(_type, _item, _filter_type) {			\
 	.type = #_type, .name = #_item,					\
 	.size = sizeof(_type), .align = __alignof__(_type),		\
 	.is_signed = is_signed_type(_type), .filter_type = _filter_type },
 
-#undef __field_struct_ext
 #define __field_struct_ext(_type, _item, _filter_type) {		\
 	.type = #_type, .name = #_item,					\
 	.size = sizeof(_type), .align = __alignof__(_type),		\
 	0, .filter_type = _filter_type },
 
-#undef __field
 #define __field(type, item)	__field_ext(type, item, FILTER_OTHER)
 
-#undef __field_struct
 #define __field_struct(type, item) __field_struct_ext(type, item, FILTER_OTHER)
 
-#undef __array
 #define __array(_type, _item, _len) {					\
 	.type = #_type"["__stringify(_len)"]", .name = #_item,		\
 	.size = sizeof(_type[_len]), .align = __alignof__(_type),	\
 	.is_signed = is_signed_type(_type), .filter_type = FILTER_OTHER },
 
-#undef __dynamic_array
 #define __dynamic_array(_type, _item, _len) {				\
 	.type = "__data_loc " #_type "[]", .name = #_item,		\
 	.size = 4, .align = 4,						\
 	.is_signed = is_signed_type(_type), .filter_type = FILTER_OTHER },
 
-#undef __string
 #define __string(item, src) __dynamic_array(char, item, -1)
 
-#undef __bitmask
 #define __bitmask(item, nr_bits) __dynamic_array(unsigned long, item, -1)
 
-#undef DECLARE_EVENT_CLASS
 #define DECLARE_EVENT_CLASS(call, proto, args, tstruct, func, print)	\
 static struct trace_event_fields trace_event_fields_##call[] = {	\
 	tstruct								\
 	{} };
 
-#undef DEFINE_EVENT
 #define DEFINE_EVENT(template, name, proto, args)
 
-#undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
+#include "undef_all.h"
 
 /*
  * remember the offset of each array from the beginning of the event.
@@ -468,6 +451,8 @@ static inline notrace int trace_event_get_offsets_##call(		\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
+#include "undef_all.h"
+
 
 /*
  * Stage 4 of the trace events.
@@ -574,36 +559,26 @@ static inline notrace int trace_event_get_offsets_##call(		\
 #define _TRACE_PERF_INIT(call)
 #endif /* CONFIG_PERF_EVENTS */
 
-#undef __entry
 #define __entry entry
 
-#undef __field
 #define __field(type, item)
 
-#undef __field_struct
 #define __field_struct(type, item)
 
-#undef __array
 #define __array(type, item, len)
 
-#undef __dynamic_array
 #define __dynamic_array(type, item, len)				\
 	__entry->__data_loc_##item = __data_offsets.item;
 
-#undef __string
 #define __string(item, src) __dynamic_array(char, item, -1)
 
-#undef __assign_str
 #define __assign_str(dst, src)						\
 	strcpy(__get_str(dst), (src) ? (const char *)(src) : "(null)");
 
-#undef __bitmask
 #define __bitmask(item, nr_bits) __dynamic_array(unsigned long, item, -1)
 
-#undef __get_bitmask
 #define __get_bitmask(field) (char *)__get_dynamic_array(field)
 
-#undef __assign_bitmask
 #define __assign_bitmask(dst, src, nr_bits)					\
 	memcpy(__get_bitmask(dst), (src), __bitmask_size_in_bytes(nr_bits))
 
