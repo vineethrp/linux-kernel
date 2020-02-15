@@ -1,4 +1,29 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+#include <linux/trace_events.h>
+
+#ifndef TRACE_SYSTEM_VAR
+#define TRACE_SYSTEM_VAR TRACE_SYSTEM
+#endif
+
+/*
+ * DECLARE_EVENT_CLASS can be used to add a generic function
+ * handlers for events. That is, if all events have the same
+ * parameters and just have distinct trace points.
+ * Each tracepoint can be defined with DEFINE_EVENT and that
+ * will map the DECLARE_EVENT_CLASS to the tracepoint.
+ *
+ * TRACE_EVENT is a one to one mapping between tracepoint and template.
+ */
+#undef TRACE_EVENT
+#define TRACE_EVENT(name, proto, args, tstruct, assign, print) \
+	DECLARE_EVENT_CLASS(name,			       \
+			     PARAMS(proto),		       \
+			     PARAMS(args),		       \
+			     PARAMS(tstruct),		       \
+			     PARAMS(assign),		       \
+			     PARAMS(print));		       \
+	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
+
 /*
  * Stage 1 of the trace events.
  *
@@ -17,17 +42,11 @@
  * We simply do "type item;", and that will create the fields
  * in the structure.
  */
-
-#include <linux/trace_events.h>
-
-#ifndef TRACE_SYSTEM_VAR
-#define TRACE_SYSTEM_VAR TRACE_SYSTEM
-#endif
+/* Needs to be called before at the start of a stage */
+#include "trace_events_stage.h"
 
 #define __app__(x, y) str__##x##y
 #define __app(x, y) __app__(x, y)
-
-#include "undef_all.h"
 
 #define TRACE_SYSTEM_STRING __app(TRACE_SYSTEM_VAR,__trace_system_name)
 
@@ -116,7 +135,6 @@ TRACE_MAKE_SYSTEM_STR();
 	__TRACE_EVENT_PERF_PERM(name, expr)
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
-#include "undef_all.h"
 
 /*
  * Stage 2 of the trace events.
@@ -134,6 +152,7 @@ TRACE_MAKE_SYSTEM_STR();
  * The size of an array is also encoded, in the higher 16 bits of <item>.
  */
 
+#include "trace_events_stage.h"
 #define TRACE_DEFINE_ENUM(a)
 
 #define TRACE_DEFINE_SIZEOF(a)
@@ -169,8 +188,6 @@ TRACE_MAKE_SYSTEM_STR();
 #define TRACE_EVENT_PERF_PERM(event, expr...)
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
-
-#include "undef_all.h"
 
 /*
  * Stage 3 of the trace events.
@@ -210,7 +227,7 @@ TRACE_MAKE_SYSTEM_STR();
  * output format. Note, this is not needed if the data is read
  * in binary.
  */
-
+#include "trace_events_stage.h"
 
 #define TRACE_DEFINE_ENUM(a)
 
@@ -457,9 +474,6 @@ static inline notrace int trace_event_get_offsets_##call(		\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
-#include "undef_all.h"
-#define TRACE_DEFINE_ENUM(a)
-#define TRACE_DEFINE_SIZEOF(a)
 
 /*
  * Stage 4 of the trace events.
@@ -551,6 +565,9 @@ static inline notrace int trace_event_get_offsets_##call(		\
  * __attribute__((section("_ftrace_events"))) *__event_<call> = &event_<call>;
  *
  */
+#include "trace_events_stage.h"
+#define TRACE_DEFINE_ENUM(a)
+#define TRACE_DEFINE_SIZEOF(a)
 
 #ifdef CONFIG_PERF_EVENTS
 
