@@ -29,10 +29,6 @@
 #define DEFINE_EVENT_FN(template, name, proto, args, reg, unreg)	\
 	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
 
-#undef DEFINE_EVENT_PRINT
-#define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
-	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
-
 #undef TRACE_EVENT_FN
 #define TRACE_EVENT_FN(name, proto, args, tstruct,			\
 		assign, print, reg, unreg)				\
@@ -132,6 +128,9 @@ TRACE_MAKE_SYSTEM_STR();
 	static struct trace_event_call	__used		\
 	__attribute__((__aligned__(4))) event_##name
 
+#define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
+	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
+
 #define TRACE_EVENT_FLAGS(name, value)					\
 	__TRACE_EVENT_FLAGS(name, value)
 
@@ -183,9 +182,7 @@ TRACE_MAKE_SYSTEM_STR();
 	};
 
 #define DEFINE_EVENT(template, name, proto, args)
-
-#define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
-	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
+#define DEFINE_EVENT_PRINT(template, name, proto, args, print)
 
 #define TRACE_EVENT_FLAGS(event, flag)
 
@@ -394,8 +391,7 @@ static struct trace_event_fields trace_event_fields_##call[] = {	\
 #define DEFINE_EVENT(template, name, proto, args)
 
 #undef DEFINE_EVENT_PRINT // Redefining within stage.
-#define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
-	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
+#define DEFINE_EVENT_PRINT(template, name, proto, args, print)
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
@@ -470,12 +466,11 @@ static inline notrace int trace_event_get_offsets_##call(		\
 	return __data_size;						\
 }
 
-#undef DEFINE_EVENT
+#undef DEFINE_EVENT // Redefining within stage.
 #define DEFINE_EVENT(template, name, proto, args)
 
-#undef DEFINE_EVENT_PRINT
-#define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
-	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
+#undef DEFINE_EVENT_PRINT // Redefining within stage.
+#define DEFINE_EVENT_PRINT(template, name, proto, args, print)
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
