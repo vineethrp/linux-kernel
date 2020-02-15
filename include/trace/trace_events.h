@@ -5,6 +5,7 @@
 #define TRACE_SYSTEM_VAR TRACE_SYSTEM
 #endif
 
+#include "trace_events_stage.h"
 /*
  * DECLARE_EVENT_CLASS can be used to add a generic function
  * handlers for events. That is, if all events have the same
@@ -23,6 +24,26 @@
 			     PARAMS(assign),		       \
 			     PARAMS(print));		       \
 	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
+
+#undef DEFINE_EVENT_FN
+#define DEFINE_EVENT_FN(template, name, proto, args, reg, unreg)	\
+	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
+
+#undef DEFINE_EVENT_PRINT
+#define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
+	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
+
+#undef TRACE_EVENT_FN
+#define TRACE_EVENT_FN(name, proto, args, tstruct,			\
+		assign, print, reg, unreg)				\
+	TRACE_EVENT(name, PARAMS(proto), PARAMS(args),			\
+		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
+
+#undef TRACE_EVENT_FN_COND
+#define TRACE_EVENT_FN_COND(name, proto, args, cond, tstruct,	\
+		assign, print, reg, unreg)				\
+	TRACE_EVENT_CONDITION(name, PARAMS(proto), PARAMS(args), PARAMS(cond),		\
+		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
 
 /*
  * Stage 1 of the trace events.
@@ -110,23 +131,6 @@ TRACE_MAKE_SYSTEM_STR();
 #define DEFINE_EVENT(template, name, proto, args)	\
 	static struct trace_event_call	__used		\
 	__attribute__((__aligned__(4))) event_##name
-
-#define DEFINE_EVENT_FN(template, name, proto, args, reg, unreg)	\
-	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
-
-#define DEFINE_EVENT_PRINT(template, name, proto, args, print)	\
-	DEFINE_EVENT(template, name, PARAMS(proto), PARAMS(args))
-
-/* Callbacks are meaningless to ftrace. */
-#define TRACE_EVENT_FN(name, proto, args, tstruct,			\
-		assign, print, reg, unreg)				\
-	TRACE_EVENT(name, PARAMS(proto), PARAMS(args),			\
-		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
-
-#define TRACE_EVENT_FN_COND(name, proto, args, cond, tstruct,	\
-		assign, print, reg, unreg)				\
-	TRACE_EVENT_CONDITION(name, PARAMS(proto), PARAMS(args), PARAMS(cond),		\
-		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
 
 #define TRACE_EVENT_FLAGS(name, value)					\
 	__TRACE_EVENT_FLAGS(name, value)
