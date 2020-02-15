@@ -21,6 +21,8 @@
 
 #undef __entry
 #undef TP_printk
+#undef TP_fast_assign
+
 #undef __get_dynamic_array
 #undef __get_dynamic_array_len
 #undef __get_str
