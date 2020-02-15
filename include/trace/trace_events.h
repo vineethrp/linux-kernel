@@ -61,25 +61,6 @@ TRACE_MAKE_SYSTEM_STR();
 	__attribute__((section("_ftrace_eval_map")))	\
 	*TRACE_SYSTEM##_##a = &__##TRACE_SYSTEM##_##a
 
-/*
- * DECLARE_EVENT_CLASS can be used to add a generic function
- * handlers for events. That is, if all events have the same
- * parameters and just have distinct trace points.
- * Each tracepoint can be defined with DEFINE_EVENT and that
- * will map the DECLARE_EVENT_CLASS to the tracepoint.
- *
- * TRACE_EVENT is a one to one mapping between tracepoint and template.
- */
-#define TRACE_EVENT(name, proto, args, tstruct, assign, print) \
-	DECLARE_EVENT_CLASS(name,			       \
-			     PARAMS(proto),		       \
-			     PARAMS(args),		       \
-			     PARAMS(tstruct),		       \
-			     PARAMS(assign),		       \
-			     PARAMS(print));		       \
-	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
-
-
 #define __field(type, item)		type	item;
 
 #define __field_ext(type, item, filter_type)	type	item;
@@ -136,6 +117,7 @@ TRACE_MAKE_SYSTEM_STR();
 	__TRACE_EVENT_PERF_PERM(name, expr)
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
+#include "undef_all.h"
 
 /*
  * Stage 2 of the trace events.
