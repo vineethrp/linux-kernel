@@ -7683,6 +7683,29 @@ void __cant_sleep(const char *file, int line, int preempt_offset)
 EXPORT_SYMBOL_GPL(__cant_sleep);
 #endif
 
+#ifdef CONFIG_SCHED_CORE
+int task_set_core_sched(int set)
+{
+	/* Make sure no possible scheduler entry */
+	preempt_disable();
+
+	if (set)
+		sched_core_get();
+
+	current->core_cookie = set ? (unsigned long)current : 0;
+
+	set_tsk_need_resched(current);
+	set_preempt_need_resched();
+
+	if (!set)
+		sched_core_put();
+
+	/* Enter scheduler for core-scheduling */
+	preempt_enable();
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_MAGIC_SYSRQ
 void normalize_rt_tasks(void)
 {
