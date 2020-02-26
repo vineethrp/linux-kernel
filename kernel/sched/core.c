@@ -7683,25 +7683,42 @@ void __cant_sleep(const char *file, int line, int preempt_offset)
 EXPORT_SYMBOL_GPL(__cant_sleep);
 #endif
 
+// TODO: Seeing perf issue with the current core-sched tree
 #ifdef CONFIG_SCHED_CORE
+
+/* Ensure that all siblings have rescheduled once */
+static int task_set_core_sched_stopper(void *data)
+{
+	return 0;
+}
+
 int task_set_core_sched(int set)
 {
-	/* Make sure no possible scheduler entry */
-	preempt_disable();
+	if (set > 1)
+		return -ERANGE;
+
+	if (!static_branch_likely(&sched_smt_present))
+		return -EINVAL;
+
+	if (!!current->core_cookie == set)
+		return 0;
+
+	// TODO Add check for if task was tagged through cgroup
 
 	if (set)
 		sched_core_get();
 
 	current->core_cookie = set ? (unsigned long)current : 0;
 
-	set_tsk_need_resched(current);
-	set_preempt_need_resched();
+	 // TODO: Need to run only on SMT siblings?
+	 //
+	 // TODO: Why does cpu_core_tag_write_u64() run __sched_write_tag
+	 // on all cores including non-siblings?
+	stop_machine(task_set_core_sched_stopper, NULL, NULL);
 
 	if (!set)
 		sched_core_put();
 
-	/* Enter scheduler for core-scheduling */
-	preempt_enable();
 	return 0;
 }
 #endif
