@@ -7708,6 +7708,7 @@ int task_set_core_sched(int set)
 	if (set)
 		sched_core_get();
 
+	// TODO: Do I also need to enqueue curr into sched-core rb tree?
 	current->core_cookie = set ? (unsigned long)current : 0;
 
 	 // TODO: Need to run only on SMT siblings?
