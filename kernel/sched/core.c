@@ -4511,8 +4511,8 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * Try and select tasks for each sibling in decending sched_class
 	 * order.
 	 */
-again:
 	for_each_class(class) {
+again:
 		for_each_cpu_wrap(i, smt_mask, cpu) {
 			struct rq *rq_i = cpu_rq(i);
 			struct task_struct *p;
@@ -4541,21 +4541,6 @@ again:
 					goto next_class;
 
 				continue;
-			}
-
-			/*
-			 * If class_pick is higher priority than what is currently running on
-			 * an RQ, use that as the class_pick.
-			 *
-			 * This is needed because pick_next_task() has an optimization that
-			 * skips a core-wide search for a particular class altogether, if it
-			 * found no tasks in its own RQ for that class. It then moves on to
-			 * lower priority classes. However it does call pick_task() for all
-			 * CPUs in a core. When it does, we get our chance to override the
-			 * lower class's pick here.
-			 */
-			if (rq_i->curr && prio_less(p, rq_i->curr)) {
-				p = rq_i->curr;
 			}
 
 			/*
@@ -4604,6 +4589,7 @@ again:
 						cpu_rq(j)->core_pick = NULL;
 					}
 					occ = 1;
+					goto again;
 				} else {
 					/*
 					 * Once we select a task for a cpu, we
@@ -4614,7 +4600,6 @@ again:
 					need_sync = true;
 				}
 
-				goto again;
 			}
 		}
 next_class:;
@@ -7699,6 +7684,56 @@ void __cant_sleep(const char *file, int line, int preempt_offset)
 EXPORT_SYMBOL_GPL(__cant_sleep);
 #endif
 
+#ifdef CONFIG_SCHED_CORE
+
+/* Ensure that all siblings have rescheduled once */
+static int task_set_core_sched_stopper(void *data)
+{
+	return 0;
+}
+
+int task_set_core_sched(int set)
+{
+	if (set > 1)
+		return -ERANGE;
+
+	if (!static_branch_likely(&sched_smt_present))
+		return -EINVAL;
+
+	if (!!current->core_cookie == set)
+		return 0;
+
+
+	// TODO Add check for if task was tagged through cgroup (and the other
+	// way).
+	// Ans, do if ((current->core_cookie == (unsigned long)current)
+	if (set)
+		sched_core_get();
+
+	// TODO: Do I also need to enqueue curr into sched-core rb tree?
+	// Ans : no
+	current->core_cookie = set ? (unsigned long)current : 0;
+
+	// TODO: Need to run only on SMT siblings?
+	// Ans : Change to IPI + flag.
+	// old_seq = sibling->sched_core_seq;
+	// sched_yield();
+	// while (sibling->sched_core_seq == old_seq);
+	stop_machine(task_set_core_sched_stopper, NULL, NULL);
+
+	 // TODO: Why does cpu_core_tag_write_u64() run __sched_write_tag
+	 // on all cores including non-siblings?
+	 // Ans: Check snip X in diff.
+
+	if (!set)
+		sched_core_put();
+
+	pr_err("prctl success: %s/%d %lx\n", current->comm, current->pid,
+	       current->core_cookie);
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_MAGIC_SYSRQ
 void normalize_rt_tasks(void)
 {
@@ -8610,6 +8645,9 @@ static int __sched_write_tag(void *data)
 	 * when we set cgroup tag to 0 when the loop is done below.
 	 */
 	while ((p = css_task_iter_next(&it))) {
+		// snip X
+		// if (rq(p) != rq(curr))
+		//	continue;
 		p->core_cookie = !!val ? (unsigned long)tg : 0UL;
 
 		if (sched_core_enqueued(p)) {
