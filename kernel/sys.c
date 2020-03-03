@@ -2656,7 +2656,9 @@ int ksys_prctl(int option, unsigned long arg2, unsigned long arg3,
 		error = GET_TAGGED_ADDR_CTRL();
 		break;
 	case PR_SET_CORE_SCHED:
+		trace_printk("Setting prctl for core sched\n");
 		error = task_set_core_sched(arg2);
+		trace_printk("prctl set, return %d\n", (int)error);
 		break;
 	default:
 		error = -EINVAL;
