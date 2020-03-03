@@ -1096,7 +1096,7 @@ config PROVE_LOCKING
 	select DEBUG_WW_MUTEX_SLOWPATH
 	select DEBUG_LOCK_ALLOC
 	select TRACE_IRQFLAGS
-	default n
+	default y
 	help
 	 This feature enables the kernel to prove that all locking
 	 that occurs in the kernel runtime is mathematically

@@ -611,6 +611,7 @@ config BUILD_BIN2C
 
 config IKCONFIG
 	tristate "Kernel .config support"
+	default y
 	---help---
 	  This option enables the complete Linux kernel ".config" file
 	  contents to be saved in the kernel. It provides documentation
