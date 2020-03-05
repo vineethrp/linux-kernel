@@ -458,6 +458,8 @@ ashmem_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 		lru_del(range);
 
 		freed += range_size(range);
+		sc->nr_to_scan -=  range_size(range);
+
 		mutex_unlock(&ashmem_mutex);
 		f->f_op->fallocate(f,
 				   FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
@@ -467,7 +469,7 @@ ashmem_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 			wake_up_all(&ashmem_shrink_wait);
 		if (!mutex_trylock(&ashmem_mutex))
 			goto out;
-		if (--sc->nr_to_scan <= 0)
+		if (sc->nr_to_scan <= 0)
 			break;
 	}
 	mutex_unlock(&ashmem_mutex);
