@@ -400,8 +400,8 @@ EXPORT_SYMBOL_GPL(cleanup_srcu_struct);
  * srcu_struct.
  * Returns an index that must be passed to the matching srcu_read_unlock().
  */
-#define LONG_DELAY_MS 500
-#define N_READ_LOCK_DELAY 10000
+#define LONG_DELAY_MS 1000
+#define N_READ_LOCK_DELAY 1000
 int __srcu_read_lock(struct srcu_struct *ssp)
 {
 	int idx;
