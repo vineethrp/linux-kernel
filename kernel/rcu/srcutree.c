@@ -408,7 +408,6 @@ int __srcu_read_lock(struct srcu_struct *ssp)
         static int ctr;
 
 	idx = READ_ONCE(ssp->srcu_idx) & 0x1;
-        trace_printk("Reader sampled: %d\n", idx);
 
         /*
          * Delay injected between sampling srcu_idx and incrementing
@@ -434,7 +433,6 @@ EXPORT_SYMBOL_GPL(__srcu_read_lock);
 void __srcu_read_unlock(struct srcu_struct *ssp, int idx)
 {
 	smp_mb(); /* C */  /* Avoid leaking the critical section. */
-        trace_printk("Reader unlock: %d\n", idx);
 	this_cpu_inc(ssp->sda->srcu_unlock_count[idx]);
 }
 EXPORT_SYMBOL_GPL(__srcu_read_unlock);
@@ -1151,8 +1149,6 @@ static void srcu_advance_state(struct srcu_struct *ssp)
 		spin_unlock_irq_rcu_node(ssp);
 	}
 
-        trace_printk("Writer enter\n");
-
 	if (rcu_seq_state(READ_ONCE(ssp->srcu_gp_seq)) == SRCU_STATE_SCAN2) {
 
 		/*
@@ -1161,16 +1157,12 @@ static void srcu_advance_state(struct srcu_struct *ssp)
 		 */
 		idx = 1 ^ (ssp->srcu_idx & 1);
 
-                trace_printk("Writer waiting for %d\n", idx);
-
 		if (!try_check_zero(ssp, idx, 2)) {
 			mutex_unlock(&ssp->srcu_gp_mutex);
 			return; /* readers present, retry later. */
 		}
 		srcu_gp_end(ssp);  /* Releases ->srcu_gp_mutex. */
 	}
-
-        trace_printk("Writer exit\n");
 }
 
 /*
