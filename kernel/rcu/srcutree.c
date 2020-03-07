@@ -400,11 +400,25 @@ EXPORT_SYMBOL_GPL(cleanup_srcu_struct);
  * srcu_struct.
  * Returns an index that must be passed to the matching srcu_read_unlock().
  */
+#define LONG_DELAY_MS 500
+#define N_READ_LOCK_DELAY 10000
 int __srcu_read_lock(struct srcu_struct *ssp)
 {
 	int idx;
+        static int ctr;
 
 	idx = READ_ONCE(ssp->srcu_idx) & 0x1;
+
+        /*
+         * Delay injected between sampling srcu_idx and incrementing
+         * lock_count to see if SRCU can handle it.
+         */
+        ctr++; /* lost updates likely, but no problem */
+        if (ctr >= N_READ_LOCK_DELAY) {
+          mdelay(LONG_DELAY_MS);
+          ctr = 0;
+        }
+
 	this_cpu_inc(ssp->sda->srcu_lock_count[idx]);
 	smp_mb(); /* B */  /* Avoid leaking the critical section. */
 	return idx;
