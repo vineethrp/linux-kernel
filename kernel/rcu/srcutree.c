@@ -1119,6 +1119,7 @@ EXPORT_SYMBOL_GPL(srcu_batches_completed);
 static void srcu_advance_state(struct srcu_struct *ssp)
 {
 	int idx, old_idx;
+        bool before_readers, after_readers;
         unsigned long lock, unlock, old_lock, old_unlock;
 
 	mutex_lock(&ssp->srcu_gp_mutex);
@@ -1156,8 +1157,17 @@ static void srcu_advance_state(struct srcu_struct *ssp)
         old_lock = this_cpu_read(ssp->sda->srcu_lock_count[old_idx]);
         old_unlock = this_cpu_read(ssp->sda->srcu_unlock_count[old_idx]);
 
-	if (rcu_seq_state(READ_ONCE(ssp->srcu_gp_seq)) == SRCU_STATE_SCAN1) {
+        if (rcu_seq_state(READ_ONCE(ssp->srcu_gp_seq)) == SRCU_STATE_SCAN1) {
+          idx = 1 ^ (ssp->srcu_idx & 1);
+          before_readers = !try_check_zero(ssp, idx, 1);
+
 		srcu_flip(ssp);
+
+          idx = 1 ^ (ssp->srcu_idx & 1);
+          after_readers = !try_check_zero(ssp, idx, 2);
+
+          WARN_ON_ONCE(before_readers && after_readers);
+
 		spin_lock_irq_rcu_node(ssp);
 		rcu_seq_set_state(&ssp->srcu_gp_seq, SRCU_STATE_SCAN2);
 		spin_unlock_irq_rcu_node(ssp);
