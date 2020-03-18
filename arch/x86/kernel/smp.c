@@ -286,6 +286,8 @@ __visible void __irq_entry smp_reschedule_interrupt(struct pt_regs *regs)
 	scheduler_ipi();
 }
 
+void set_sched_in_ipi(void);
+void reset_sched_in_ipi(void);
 __visible void __irq_entry smp_call_function_interrupt(struct pt_regs *regs)
 {
 	ipi_entering_ack_irq();
