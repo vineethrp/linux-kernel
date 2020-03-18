@@ -4511,8 +4511,8 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * Try and select tasks for each sibling in decending sched_class
 	 * order.
 	 */
-again:
 	for_each_class(class) {
+again:
 		for_each_cpu_wrap(i, smt_mask, cpu) {
 			struct rq *rq_i = cpu_rq(i);
 			struct task_struct *p;
@@ -4541,21 +4541,6 @@ again:
 					goto next_class;
 
 				continue;
-			}
-
-			/*
-			 * If class_pick is higher priority than what is currently running on
-			 * an RQ, use that as the class_pick.
-			 *
-			 * This is needed because pick_next_task() has an optimization that
-			 * skips a core-wide search for a particular class altogether, if it
-			 * found no tasks in its own RQ for that class. It then moves on to
-			 * lower priority classes. However it does call pick_task() for all
-			 * CPUs in a core. When it does, we get our chance to override the
-			 * lower class's pick here.
-			 */
-			if (rq_i->curr && prio_less(p, rq_i->curr)) {
-				p = rq_i->curr;
 			}
 
 			/*
@@ -4604,6 +4589,7 @@ again:
 						cpu_rq(j)->core_pick = NULL;
 					}
 					occ = 1;
+					goto again;
 				} else {
 					/*
 					 * Once we select a task for a cpu, we
@@ -4614,7 +4600,6 @@ again:
 					need_sync = true;
 				}
 
-				goto again;
 			}
 		}
 next_class:;
