@@ -4458,17 +4458,20 @@ void sched_core_priv_enter(void)
 		if (!srq->curr->core_cookie)
 			continue;
 
+		if (!priv) {
+			priv = true;
+			WRITE_ONCE(rq->core->core_priv, true);
+			this_cpu_write(sched_core_priv, true);
+		}
+
 		csd = this_cpu_ptr(&htpause_csd);
 		csd->func = sched_core_sibling_pause;
 		csd->flags = 0;
 		csd->info = NULL;
 		smp_call_function_single_async(i, csd);
-		priv = true;
 	}
 
 	if (priv) {
-		rq->core->core_priv = true;
-		this_cpu_write(sched_core_priv, true);
 		trace_printk("[priv] ENTER priv state, dump stack\n");
 	}
 unlock:
