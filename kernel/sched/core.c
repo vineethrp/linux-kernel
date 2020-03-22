@@ -4426,6 +4426,9 @@ void sched_core_priv_enter(void)
 	bool priv = false;
 	const struct cpumask *smt_mask;
 
+	if (!sched_core_enabled(rq))
+		return;
+
 	if (this_cpu_read(sched_in_ipi))
 		return;
 
@@ -4485,6 +4488,9 @@ void sched_core_priv_exit(void)
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
 	bool priv = false;
+
+	if (!sched_core_enabled(rq))
+		return;
 
 	// Check if we entered the exclusive state on this CPU, without
 	// acquiring the runqueue lock.
