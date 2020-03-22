@@ -4393,6 +4393,11 @@ static void sched_core_sibling_pause(void *info)
 	if (!rq->core)
 		return;
 
+	// The CPU that is in a priv state should never
+	// try to pause.
+	if (WARN_ON_ONCE(this_cpu_read(sched_core_priv)))
+		return;
+
 	trace_printk("[priv]: ENTER sibling pause\n");
 	while (READ_ONCE(rq->core->core_priv))
 		cpu_relax();
