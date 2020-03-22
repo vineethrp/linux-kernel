@@ -4385,6 +4385,13 @@ static inline bool cookie_match(struct task_struct *a, struct task_struct *b)
 	return a->core_cookie == b->core_cookie;
 }
 
+/*
+ * If core is in a privileged state due to sibling, just wait for core
+ * to exit this state. We can't return yet to userspace to avoid
+ * MDS/L1TF between this HT and the priv HT (which may be running
+ * IRQ/softirqs). For MDS, this issue is present for both host and
+ * guest attackers. For L1TF, only guests.
+ */
 static void sched_core_sibling_pause(void *info)
 {
 	int cpu = smp_processor_id();
@@ -5054,26 +5061,13 @@ static void __sched notrace __schedule(bool preempt)
 
 #ifdef CONFIG_SCHED_CORE
 	/*
-	 * If core is in a privileged state due to sibling, just wait for core
-	 * to exit this state. We can't return yet to userspace to avoid
-	 * MDS/L1TF between this HT and the priv HT (which may be running
-	 * IRQ/softirqs). For MDS, this issue is present for both host and
-	 * guest attackers. For L1TF, only guests.
+	 * For when a schedule() happens on one sibling, while a long IRQ
+	 * happens on the other. In this case, the other IRQ-sibling cannot
+	 * pause this sibling since we have crossed the IRQ entry point. So
+	 * make schedule() pause it.
 	 */
-	if (pause_ht) {
-		int tr = 0;
-		if (rq->core->core_priv) {
-			trace_printk("[unpriv] START waiting for priv task to end\n");
-			tr = 1;
-		}
-
-		while (READ_ONCE(rq->core->core_priv))
-			cpu_relax();
-
-		if (tr) {
-			trace_printk("[unpriv] END Waiting for priv task to end\n");
-		}
-	}
+	if (pause_ht)
+		sched_core_sibling_pause(NULL);
 #endif
 
 	balance_callback(rq);
