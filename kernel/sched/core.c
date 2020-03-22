@@ -4490,7 +4490,6 @@ void sched_core_priv_exit(void)
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
-	bool priv = false;
 
 	if (!sched_core_enabled(rq))
 		return;
@@ -4504,12 +4503,10 @@ void sched_core_priv_exit(void)
 	if (!rq->core)
 		goto unlock;
 
-	priv = rq->core->core_priv;
-	if (priv)
-		WRITE_ONCE(rq->core->core_priv, false);
+	WARN_ON_ONCE(!rq->core->core_priv);
+	WRITE_ONCE(rq->core->core_priv, false);
 
-	if (priv)
-		trace_printk("[priv] EXIT priv state, dump stack\n");
+	trace_printk("[priv] EXIT priv state, dump stack\n");
 unlock:
 	this_cpu_write(sched_core_priv, false);
 	raw_spin_unlock_irqrestore(rq_lockp(rq), flags);
