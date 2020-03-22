@@ -4469,6 +4469,11 @@ void sched_core_priv_enter(void)
 		csd->flags = 0;
 		csd->info = NULL;
 		smp_call_function_single_async(i, csd);
+
+		// XXX: Wait for pause to start on the receiving side.
+		// Since the smp_call is async, it will not wait for
+		// the handler to finish executing on the receiver.
+		// csd_wait(csd);
 	}
 
 	if (priv) {
