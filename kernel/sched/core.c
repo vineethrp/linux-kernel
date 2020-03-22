@@ -4454,9 +4454,9 @@ void sched_core_priv_enter(void)
 		if (i == cpu || cpu_is_offline(i) || !srq || !srq->curr)
 			continue;
 
-		// If sibling is not running a tagged task, we are good.
-		if (!srq->curr->core_cookie)
-			continue;
+		// At this point, the HT better be running a tagged task
+		// We don't want to IPI a non-tagged HT.
+		WARN_ON_ONCE(!srq->curr->core_cookie);
 
 		if (!priv) {
 			priv = true;
