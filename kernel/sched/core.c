@@ -4421,10 +4421,25 @@ static void sched_core_sibling_pause_ipi(void *info)
 	if (WARN_ON_ONCE(!READ_ONCE(rq->core_pause_pending)))
 		return;
 
+redo_pause:
 	sched_core_sibling_pause();
+
+	/* -----------------------
+	 * There could be a race here after exiting the
+	 * sched_core_sibling_pause(), where a new priv_enter() sets
+	 * ->core_priv to true, but does not send a new IPI because
+	 *  pause_pending is still true. So we need to recheck after setting
+	 *  pause_pending to false below, if ->core_priv is still true and
+	 *  retry the pause.
+	 *  ----------------------
+	 */
 
 	WRITE_ONCE(rq->core_pause_pending, false);
 	smp_wmb(); /* synchronize with read of core_pause_pending*/
+
+	smp_rmb();
+	if (READ_ONCE(rq->core->core_priv))
+		goto redo_pause;
 }
 
 void set_sched_in_ipi(void)
