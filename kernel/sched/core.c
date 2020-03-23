@@ -5025,7 +5025,6 @@ static void __sched notrace __schedule(bool preempt)
 	struct rq_flags rf;
 	struct rq *rq;
 	int cpu;
-	bool pause_ht = false;
 
 	cpu = smp_processor_id();
 	rq = cpu_rq(cpu);
@@ -5098,12 +5097,6 @@ static void __sched notrace __schedule(bool preempt)
 
 		trace_sched_switch(preempt, prev, next);
 
-#ifdef CONFIG_SCHED_CORE
-		/* While we are on rq lock, check if we should pause HT */
-		pause_ht = (rq->core && rq->core->core_priv && next &&
-			    !is_idle_task(next) && next->core_cookie);
-#endif
-
 		/* Also unlocks the rq: */
 		rq = context_switch(rq, prev, next, &rf);
 	} else {
@@ -5118,7 +5111,8 @@ static void __sched notrace __schedule(bool preempt)
 	 * pause this sibling since we have crossed the IRQ entry point. So
 	 * make schedule() pause it.
 	 */
-	if (pause_ht)
+	if (sched_core_enabled(rq) && READ_ONCE(rq->core->core_priv) &&
+	    !is_idle_task(next) && !next->mm && next->core_cookie)
 		sched_core_sibling_pause();
 #endif
 
