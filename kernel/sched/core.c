@@ -4450,7 +4450,6 @@ void sched_core_priv_enter(void)
 {
 	int i, cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
-	unsigned long flags;
 	const struct cpumask *smt_mask;
 
 	if (!sched_core_enabled(rq))
@@ -4464,7 +4463,7 @@ void sched_core_priv_enter(void)
 	if (this_cpu_read(sched_core_priv))
 		return;
 
-	raw_spin_lock_irqsave(rq_lockp(rq), flags);
+	raw_spin_lock(rq_lockp(rq));
 	smt_mask = cpu_smt_mask(cpu);
 
 	if (!rq->core || !rq->core->core_cookie)
@@ -4516,7 +4515,7 @@ void sched_core_priv_enter(void)
 
 	trace_printk("[priv] ENTER priv state, dump stack\n");
 unlock:
-	raw_spin_unlock_irqrestore(rq_lockp(rq), flags);
+	raw_spin_unlock(rq_lockp(rq));
 }
 
 /*
@@ -4530,7 +4529,6 @@ void sched_core_priv_exit(void)
 {
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
-	unsigned long flags;
 
 	if (!sched_core_enabled(rq))
 		return;
@@ -4540,7 +4538,7 @@ void sched_core_priv_exit(void)
 	if (!this_cpu_read(sched_core_priv))
 		return;
 
-	raw_spin_lock_irqsave(rq_lockp(rq), flags);
+	raw_spin_lock(rq_lockp(rq));
 	if (!rq->core)
 		goto unlock;
 
@@ -4550,7 +4548,7 @@ void sched_core_priv_exit(void)
 	trace_printk("[priv] EXIT priv state, dump stack\n");
 unlock:
 	this_cpu_write(sched_core_priv, false);
-	raw_spin_unlock_irqrestore(rq_lockp(rq), flags);
+	raw_spin_unlock(rq_lockp(rq));
 }
 
 // XXX fairness/fwd progress conditions
