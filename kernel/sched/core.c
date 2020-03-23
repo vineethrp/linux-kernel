@@ -4481,7 +4481,10 @@ void sched_core_priv_enter(void)
 		call_single_data_t *csd;
 		struct rq *srq = cpu_rq(i);
 
-		if (i == cpu || cpu_is_offline(i) || !srq || !srq->curr)
+		if (i == cpu || cpu_is_offline(i))
+			continue;
+
+		if (!srq->curr->mm || is_idle_task(srq->curr))
 			continue;
 
 		// At this point, the HT better be running a tagged task
