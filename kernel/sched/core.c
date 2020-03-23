@@ -4451,7 +4451,6 @@ void sched_core_priv_enter(void)
 	int i, cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
-	bool priv = false;
 	const struct cpumask *smt_mask;
 
 	if (!sched_core_enabled(rq))
@@ -4475,6 +4474,9 @@ void sched_core_priv_enter(void)
 	if (rq->core->core_priv)
 		goto unlock;
 
+	WRITE_ONCE(rq->core->core_priv, true);
+	this_cpu_write(sched_core_priv, true);
+
 	for_each_cpu(i, smt_mask) {
 		call_single_data_t *csd;
 		struct rq *srq = cpu_rq(i);
@@ -4485,12 +4487,6 @@ void sched_core_priv_enter(void)
 		// At this point, the HT better be running a tagged task
 		// We don't want to IPI a non-tagged HT.
 		WARN_ON_ONCE(!srq->curr->core_cookie);
-
-		if (!priv) {
-			priv = true;
-			WRITE_ONCE(rq->core->core_priv, true);
-			this_cpu_write(sched_core_priv, true);
-		}
 
 		// IPI only if previous pause IPI was not pending
 		// This should prevent any issues resending IPI if
@@ -4515,9 +4511,7 @@ void sched_core_priv_enter(void)
 		// csd_wait(csd);
 	}
 
-	if (priv) {
-		trace_printk("[priv] ENTER priv state, dump stack\n");
-	}
+	trace_printk("[priv] ENTER priv state, dump stack\n");
 unlock:
 	raw_spin_unlock_irqrestore(rq_lockp(rq), flags);
 }
