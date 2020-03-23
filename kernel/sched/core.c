@@ -4392,7 +4392,8 @@ static inline bool cookie_match(struct task_struct *a, struct task_struct *b)
  * IRQ/softirqs). For MDS, this issue is present for both host and
  * guest attackers. For L1TF, only guests.
  */
-static void sched_core_sibling_pause(void *info)
+
+static void sched_core_sibling_pause(void)
 {
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
@@ -4409,6 +4410,21 @@ static void sched_core_sibling_pause(void *info)
 	while (READ_ONCE(rq->core->core_priv))
 		cpu_relax();
 	trace_printk("[priv]: EXIT sibling pause\n");
+}
+
+static void sched_core_sibling_pause_ipi(void *info)
+{
+	int cpu = smp_processor_id();
+	struct rq *rq = cpu_rq(cpu);
+
+	smp_rmb(); /* synchronize with write of core_pause_pending */
+	if (WARN_ON_ONCE(!READ_ONCE(rq->core_pause_pending)))
+		return;
+
+	sched_core_sibling_pause();
+
+	WRITE_ONCE(rq->core_pause_pending, false);
+	smp_wmb(); /* synchronize with read of core_pause_pending*/
 }
 
 void set_sched_in_ipi(void)
@@ -4476,11 +4492,22 @@ void sched_core_priv_enter(void)
 			this_cpu_write(sched_core_priv, true);
 		}
 
-		csd = this_cpu_ptr(&htpause_csd);
-		csd->func = sched_core_sibling_pause;
-		csd->flags = 0;
-		csd->info = NULL;
-		smp_call_function_single_async(i, csd);
+		// IPI only if previous pause IPI was not pending
+		// This should prevent any issues resending IPI if
+		// previous one was pending.
+
+		smp_rmb(); /* synchronize with IPI write */
+		if (!READ_ONCE(srq->core_pause_pending)) {
+
+			WRITE_ONCE(srq->core_pause_pending, true);
+			smp_wmb(); /* synchronize with IPI read */
+
+			csd = this_cpu_ptr(&htpause_csd);
+			csd->func = sched_core_sibling_pause_ipi;
+			csd->flags = 0;
+			csd->info = NULL;
+			smp_call_function_single_async(i, csd);
+		}
 
 		// XXX: Wait for pause to start on the receiving side.
 		// Since the smp_call is async, it will not wait for
@@ -5067,7 +5094,7 @@ static void __sched notrace __schedule(bool preempt)
 	 * make schedule() pause it.
 	 */
 	if (pause_ht)
-		sched_core_sibling_pause(NULL);
+		sched_core_sibling_pause();
 #endif
 
 	balance_callback(rq);
