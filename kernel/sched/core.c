@@ -4489,7 +4489,7 @@ void sched_core_priv_enter(void)
 
 		// At this point, the HT better be running a tagged task
 		// We don't want to IPI a non-tagged HT.
-		WARN_ON_ONCE(!srq->curr->core_cookie);
+		WARN_ON_ONCE(!srq->curr->core_cookie && !srq->core_pick);
 
 		// IPI only if previous pause IPI was not pending
 		// This should prevent any issues resending IPI if
