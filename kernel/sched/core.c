@@ -3878,11 +3878,14 @@ noinline void sched_core_sibling_pause(void)
 	if (!rq->core)
 		return;
 
+	/*
+	 * This implies we are entering a pause from an IRQ handler itself,
+	 * which should never happen.
+	 */
 	WARN_ON_ONCE(this_cpu_read(sched_core_irq));
 
 	trace_printk("[unpriv]: ENTER sibling pause\n");
-	while (READ_ONCE(rq->core->core_irq))
-		cpu_relax();
+	smp_cond_load_acquire(&rq->core->core_irq, !VAL);
 	trace_printk("[unpriv]: EXIT sibling pause\n");
 }
 
@@ -3892,8 +3895,9 @@ noinline void sched_core_sibling_pause_ipi(void *info)
 	struct rq *rq = cpu_rq(cpu);
 
 	trace_printk("[unpriv] enter IPI\n");
-	smp_rmb(); /* synchronize with store of core_pause_pending */
-	if (WARN_ON_ONCE(!READ_ONCE(rq->core_pause_pending)))
+
+	/* Pair with smp_store_release() in sched_core_irq_enter(). */
+	if (WARN_ON_ONCE(!smp_load_acquire(&rq->core_pause_pending)))
 		return;
 
 	/*
@@ -3901,16 +3905,10 @@ noinline void sched_core_sibling_pause_ipi(void *info)
 	 * since the softirq is trusted, and also pausing here cause deadlock.
 	 */
 	if (this_cpu_read(sched_core_irq) || !sched_feat(CORE_IRQ_PAUSE_BUSY)) {
-		raw_spin_lock(rq_lockp(rq));
-		rq->core_pause_pending = false;
-		raw_spin_unlock(rq_lockp(rq));
+		smp_store_release(&rq->core_pause_pending, false);
 		return;
 	}
 redo_pause:
-	/*
-	 * Order start of IPI and load of pause_pending with load of
-	 * ->core_irq in sched_core_sibling_pause() (MP-pattern).
-	 */
 	sched_core_sibling_pause();
 
 	/*
@@ -3920,11 +3918,6 @@ redo_pause:
 	 * pause_pending is still true. So we need to recheck after setting
 	 * pause_pending to false below, if ->core_irq is still true and
 	 * retry the pause.
-	 */
-
-	/*
-	 * Order write to _pending with end of IPI and also order it with
-	 * read of ->core_irq (SB-pattern).
 	 */
 	raw_spin_lock(rq_lockp(rq));
 	if (rq->core->core_irq) {
@@ -4002,8 +3995,11 @@ noinline void sched_core_irq_enter(void)
 		if (!READ_ONCE(srq->core_pause_pending)
 				&& sched_feat(CORE_IRQ_PAUSE_IPI)) {
 
-			srq->core_pause_pending = true;
-			smp_wmb(); /* Order store to _pending with IPI handler start */
+			/*
+			 * Pair with smp_load_acquire() in
+			 * sched_core_sibling_pause_ipi().
+			 */
+			smp_store_release(&srq->core_pause_pending, true);
 
 			trace_printk("[priv] sending IPI\n");
 			csd = this_cpu_ptr(&htpause_csd);
@@ -4036,24 +4032,19 @@ noinline void sched_core_irq_exit(void)
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 
-	if (!sched_core_enabled(rq))
+	/* Do nothing if core-sched disabled or we're interrupted in softirq */
+	if (!sched_core_enabled(rq) || !this_cpu_read(sched_core_irq))
 		return;
 
-	// Check if we entered the exclusive state on this CPU, without
-	// acquiring the runqueue lock.
-	if (!this_cpu_read(sched_core_irq))
-		return;
-
-	/* Prevent reorder of IRQ's content with core_irq=false */
-	raw_spin_lock(rq_lockp(rq));
-
+	/* Cannot ever be called if the core wasn't in the 'core-irq' state */
 	WARN_ON_ONCE(!rq->core->core_irq);
-	WRITE_ONCE(rq->core->core_irq, false);
 
-	trace_printk("[priv] EXIT priv state, dump stack\n");
+	/* Pair with smp_cond_load_acquire() in sched_core_sibling_pause(). */
+	smp_store_release(&rq->core->core_irq, false);
 
 	this_cpu_write(sched_core_irq, false);
-	raw_spin_unlock(rq_lockp(rq));
+
+	trace_printk("[priv] EXIT priv state, dump stack\n");
 }
 
 // XXX fairness/fwd progress conditions
