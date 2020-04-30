@@ -980,7 +980,7 @@ struct rq {
 	unsigned int		core_task_seq;
 	unsigned int		core_pick_seq;
 	unsigned long		core_cookie;
-	bool			core_irq;
+	unsigned int		core_irq_nest;
 #endif
 };
 
