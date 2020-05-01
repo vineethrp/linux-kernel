@@ -3949,6 +3949,8 @@ noinline void sched_core_irq_enter(void)
 	if (!sched_core_enabled(rq))
 		return;
 
+	WARN_ON_ONCE(rq->core->core_irq_nest > 20);
+
 	/* Return if we are in an IPI sent from the other sibling. */
 	if (READ_ONCE(rq->core_pause_pending))
 		return;
@@ -3971,6 +3973,7 @@ noinline void sched_core_irq_enter(void)
 		this_cpu_write(sched_core_irq, true);
 
 	WRITE_ONCE(rq->core->core_irq_nest, rq->core->core_irq_nest + 1);
+	trace_printk("enter: core_irq_nest is core_irq_nest=%d\n", rq->core->core_irq_nest);
 
 	for_each_cpu(i, smt_mask) {
 		call_single_data_t *csd;
@@ -4047,9 +4050,12 @@ noinline void sched_core_irq_exit(void)
 
 	/* Pair with smp_cond_load_acquire() in sched_core_sibling_pause(). */
 	smp_store_release(&rq->core->core_irq_nest, rq->core->core_irq_nest - 1);
+	trace_printk("exit: core_irq_nest is core_irq_nest=%d\n", rq->core->core_irq_nest);
 
-	if (rq->core->core_irq_nest == 0)
+	if (rq->core->core_irq_nest == 0) {
+		trace_printk("core_irq_nest is 0\n");
 		this_cpu_write(sched_core_irq, false);
+	}
 unlock:
 	raw_spin_unlock(rq_lockp(rq));
 
