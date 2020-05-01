@@ -3843,7 +3843,6 @@ restart:
 
 #ifdef CONFIG_SCHED_CORE
 
-DEFINE_PER_CPU(bool, sched_core_irq);
 static DEFINE_PER_CPU_SHARED_ALIGNED(call_single_data_t, htpause_csd);
 
 static inline bool cookie_equals(struct task_struct *a, unsigned long cookie)
@@ -3869,7 +3868,7 @@ static inline bool cookie_match(struct task_struct *a, struct task_struct *b)
 noinline void sched_core_sibling_pause_rq(struct rq *rq)
 {
 	/* Trying to pause from a hard IRQ should never happen */
-	WARN_ON_ONCE(this_cpu_read(sched_core_irq));
+	WARN_ON_ONCE(rq->core_this_irq_nest);
 
 	trace_printk("[unpriv]: ENTER sibling pause\n");
 	while (READ_ONCE(rq->core->core_irq_nest))
@@ -3899,12 +3898,10 @@ noinline void sched_core_sibling_pause_ipi(void *info)
 
 	/*
 	 * Can happen if IPI received during softirq execution at the tail end
-	 * of an interrupt. In this case, just try to enter the scheduler soon
-	 * and wait there instead of waiting here and dead locking.
+	 * of an interrupt. The outer most irq_exit() will handle entry into
+	 * the scheduler soon and wait there instead of deadlocking here.
 	 */
-	if (this_cpu_read(sched_core_irq) || !sched_feat(CORE_IRQ_PAUSE_BUSY)) {
-		set_tsk_need_resched(current);
-		set_preempt_need_resched();
+	if (rq->core_this_irq_nest || !sched_feat(CORE_IRQ_PAUSE_BUSY)) {
 		smp_store_release(&rq->core_pause_pending, false);
 		return;
 	}
@@ -3961,16 +3958,11 @@ noinline void sched_core_irq_enter(void)
 	if (!rq->core->core_cookie)
 		goto unlock;
 
-	if (WARN_ON_ONCE(rq->core->core_irq_nest > (ULONG_MAX / 2)))
+	if ((WARN_ON_ONCE(rq->core->core_irq_nest > (ULONG_MAX / 2))) ||
+	    (WARN_ON_ONCE(rq->core_this_irq_nest > (ULONG_MAX / 2))))
 		goto unlock;
 
-	/*
-	 * Track outermost hard irq. Needed for detecting if
-	 * we are entering sched_core_sibling_pause() when this sibling
-	 * is responsible for entering the core-wide IRQ state.
-	 */
-	if (rq->core->core_irq_nest == 0)
-		this_cpu_write(sched_core_irq, true);
+	rq->core_this_irq_nest++;
 
 	WRITE_ONCE(rq->core->core_irq_nest, rq->core->core_irq_nest + 1);
 	trace_printk("enter: core_irq_nest is core_irq_nest=%d\n", rq->core->core_irq_nest);
@@ -4046,17 +4038,21 @@ noinline void sched_core_irq_exit(void)
 		goto unlock;
 
 	/* Cannot ever be called if were not in a core-wide IRQ state */
-	if (WARN_ON_ONCE(rq->core->core_irq_nest > (ULONG_MAX / 2)))
+	if (WARN_ON_ONCE(rq->core->core_irq_nest > (ULONG_MAX / 2)) || 
+	    (WARN_ON_ONCE(rq->core_this_irq_nest > (ULONG_MAX / 2))))
 		goto unlock;
+
+	rq->core_this_irq_nest--;
+
+	if (rq->core_this_irq_nest == 0 && rq->core->core_irq_nest > 1) {
+		set_tsk_need_resched(current);
+		set_preempt_need_resched();
+	}
 
 	/* Pair with smp_cond_load_acquire() in sched_core_sibling_pause(). */
 	smp_store_release(&rq->core->core_irq_nest, rq->core->core_irq_nest - 1);
-	trace_printk("exit: core_irq_nest is core_irq_nest=%d\n", rq->core->core_irq_nest);
-
-	if (rq->core->core_irq_nest == 0) {
-		trace_printk("core_irq_nest is 0\n");
-		this_cpu_write(sched_core_irq, false);
-	}
+	trace_printk("exit: core_irq_nest is core_irq_nest=%d per-cpu nest=%d\n",
+		     rq->core->core_irq_nest, rq->core_this_irq_nest);
 unlock:
 	raw_spin_unlock(rq_lockp(rq));
 
