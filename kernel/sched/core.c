@@ -3872,7 +3872,9 @@ noinline void sched_core_sibling_pause_rq(struct rq *rq)
 	WARN_ON_ONCE(this_cpu_read(sched_core_irq));
 
 	trace_printk("[unpriv]: ENTER sibling pause\n");
-	smp_cond_load_acquire(&rq->core->core_irq_nest, !VAL);
+	while (READ_ONCE(rq->core->core_irq_nest))
+		cpu_relax();
+	// smp_cond_load_acquire(&rq->core->core_irq_nest, !VAL);
 	trace_printk("[unpriv]: EXIT sibling pause\n");
 }
 
