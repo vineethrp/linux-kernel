@@ -4042,11 +4042,12 @@ noinline void sched_core_irq_exit(void)
 
 	raw_spin_lock(rq_lockp(rq));
 
-	/* Cannot ever be called if were not in a core-wide IRQ state */
-	if (WARN_ON_ONCE(!rq->core->core_irq_nest ||
-			 rq->core->core_irq_nest > (ULONG_MAX / 2))) {
+	if (!rq->core->core_irq_nest)
 		goto unlock;
-	}
+
+	/* Cannot ever be called if were not in a core-wide IRQ state */
+	if (WARN_ON_ONCE(rq->core->core_irq_nest > (ULONG_MAX / 2)))
+		goto unlock;
 
 	/* Pair with smp_cond_load_acquire() in sched_core_sibling_pause(). */
 	smp_store_release(&rq->core->core_irq_nest, rq->core->core_irq_nest - 1);
